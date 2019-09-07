@@ -1,3 +1,9 @@
+config/config.json
+i/
+image-type.json
+.vscode/
+package-lock.json
+
 # Logs
 logs
 *.log
