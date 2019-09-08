@@ -11,6 +11,7 @@ let dE = new Date(), startTime = dE.getTime(), endTime, modules = [], image_json
 
 // Clear console before printing anything
 console.clear();
+
 fs.readFile('./misc/ascii.txt', function(err, data) {
     if (err) throw err;
     fs.readdir(config.server.image_dir, (err, files) => {
