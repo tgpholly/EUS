@@ -7,11 +7,10 @@ internals = {
         c:"WARN"
     }
 };
-let dE = new Date(), startTime = dE.getTime(), endTime, modules = [], img_json;
+let dE = new Date(), startTime = dE.getTime(), endTime, modules = [], image_json;
 
 // Clear console before printing anything
 console.clear();
-
 fs.readFile('./misc/ascii.txt', function(err, data) {
     if (err) throw err;
     fs.readdir(config.server.image_dir, (err, files) => {
@@ -44,10 +43,16 @@ fs.readFile('./misc/ascii.txt', function(err, data) {
                 if (error) {
                     fs.writeFile('./image-type.json', '{\n\}', function(err) {
                         if (err) throw err;
-                        modules.logger.log(internals.types.a, emoji.thumb_down, "Created image-type File!");
+                        modules.logger.log(internals.types.a, emoji.heavy_check, "Created image-type File!");
+                        image_json = require("./image-type.json");
                     });
                 } else {
                     image_json = require("./image-type.json");
+                }
+            });
+            fs.access(config.server.image_dir, error => {
+                if (error) {
+                    fs.mkdirSync(config.server.image_dir);
                 }
             });
             modules.logger.log(internals.types.a, emoji.wave, "Starting Revolution...");
