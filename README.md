@@ -6,4 +6,4 @@
 <h1 align="center">
   Setup
 </h1>
-<p align="center">EUS has extra dependancies other than <a href="https://github.com/tgpethan/Revolution">Revolution</a>'s base, of which include:<br><a href="https://www.npmjs.com/package/connect-busboy">connect-busboy</a><br><a href="https://www.npmjs.com/package/randomstring">randomstring</a></p>
+<p>EUS has extra dependancies other than <a href="https://github.com/tgpethan/Revolution">Revolution</a>'s base, of which include:<br><a href="https://www.npmjs.com/package/connect-busboy">connect-busboy</a><br><a href="https://www.npmjs.com/package/randomstring">randomstring</a></p>
