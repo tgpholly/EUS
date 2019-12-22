@@ -11,32 +11,29 @@ const MODULE_FUNCTION = "handle_requests",
 // Base path for module folder creation and navigation
 BASE_PATH = "/EUS";
 
-const exportURI = "http://localhost:"+config.server.port+"/";
-const acceptedTypes = [
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif"
-];
-let image_json = {},
+let eusConfig = {},
+image_json = {},
 d = new Date(),
 startTime,
 endTime;
 
 // Only ran on startup so using sync functions is fine
-// Makes the folders for files of the module
+// Makes the folder for files of the module
 if (!fs.existsSync(__dirname + BASE_PATH)) {
     fs.mkdirSync(__dirname + BASE_PATH);
     console.log(`[EUS] Made EUS module folder`);
 }
+// Makes the folder for frontend files
 if (!fs.existsSync(__dirname + BASE_PATH + "/files")) {
     fs.mkdirSync(__dirname + BASE_PATH + "/files");
     console.log(`[EUS] Made EUS web files folder`);
 }
+// Makes the folder for images
 if (!fs.existsSync(__dirname + BASE_PATH + "/i")) {
     fs.mkdirSync(__dirname + BASE_PATH + "/i");
     console.log(`[EUS] Made EUS images folder`);
 }
+// Makes the image-type file
 fs.access(`${__dirname}${BASE_PATH}/image-type.json`, error => {
     if (error) {
         fs.writeFile(`${__dirname}${BASE_PATH}/image-type.json`, '{\n\}', function(err) {
@@ -48,6 +45,22 @@ fs.access(`${__dirname}${BASE_PATH}/image-type.json`, error => {
         image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
     }
 });
+// Makes the config file
+fs.access(`${__dirname}${BASE_PATH}/config.json`, error => {
+    if (error) {
+        fs.writeFile(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t]\n}', function(err) {
+            if (err) throw err;
+            global.modules.consoleHelper.printInfo(emoji.heavy_check, "Created config File!");
+            global.modules.consoleHelper.printInfo(emoji.wave, "Please edit the EUS Config file before restarting.");
+            process.exit(0);
+        });
+    } else {
+        eusConfig = require(`${__dirname}${BASE_PATH}/image-type.json`);
+    }
+});
+
+// Construct the full exported url from the config string and port using javascript magic
+const exportURL = `${eusConfig.baseURL}:${config.server.port}/`;
 
 module.exports = {
     extras:function() {
@@ -101,7 +114,7 @@ module.exports = {
             image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
             fileOutName = randomstring.generate(14);
             global.modules.consoleHelper.printInfo(emoji.fast_up, `${req.method}: Upload of ${fileOutName} started.`);  
-            if (acceptedTypes.includes(`.${filename.split(".")[filename.split(".").length-1]}`)) {
+            if (eusConfig.acceptedTypes.includes(`.${filename.split(".")[filename.split(".").length-1]}`)) {
                 thefe = `.${filename.split(".")[filename.split(".").length-1]}`;
             } else {
                 res.end("This file type isn't accepted currently.");
@@ -117,7 +130,7 @@ module.exports = {
                 fs.writeFile(`${__dirname}${BASE_PATH}/image-type.json`, JSON.stringify(image_json), function(err) {
                     if (err) throw err;
                     global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${endTime - startTime}ms`);             
-                    res.end(exportURI+""+fileOutName);
+                    res.end(exportURL+""+fileOutName);
                 });
             });
         });
