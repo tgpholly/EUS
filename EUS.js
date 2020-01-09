@@ -78,6 +78,8 @@ module.exports = {
             res - Response from server
         */
         
+        if (req.query["stat"] == "get") return res.end('{ "status":1, "version":"'+global.internals.version+'" }');
+
         // Register the time at the start of the request
         d = new Date();
         startTime = d.getTime();
@@ -87,7 +89,8 @@ module.exports = {
         fs.access(__dirname + BASE_PATH + "/i/"+urs+image_json[urs], error => {
             if (error) {
                 // Doesn't exist, handle request normaly
-                fs.access(__dirname + BASE_PATH + "/files"+req.url, error => {
+                if (req.url === "/") { urs = "/index.html" } else { urs = req.url };
+                fs.access(__dirname + BASE_PATH + "/files"+urs, error => {
                     if (error) {
                         // Doesn't exist, send a 404 to the client.
                         res.status(404).end("404!");
