@@ -3,6 +3,7 @@ config = require("../config/config.json"),
 chalk = require("chalk"),
 busboy = require("connect-busboy"),
 randomstring = require("randomstring"),
+getSize = require('get-folder-size'),
 emoji = require("../misc/emoji_list.json");
 
 // Defines the function of this module
@@ -60,12 +61,9 @@ fs.access(`${__dirname}${BASE_PATH}/config.json`, error => {
             process.exit(0);
         });
     } else {
-        eusConfig = require(`${__dirname}${BASE_PATH}/image-type.json`);
+        eusConfig = require(`${__dirname}${BASE_PATH}/config.json`);
     }
 });
-
-// Construct the full exported url from the config string and port using javascript magic
-const exportURL = `${eusConfig.baseURL}:${config.server.port}/`;
 
 module.exports = {
     extras:function() {
@@ -78,41 +76,82 @@ module.exports = {
             res - Response from server
         */
         
+        let isAPI = false;
+
         if (req.query["stat"] == "get") return res.end('{ "status":1, "version":"'+global.internals.version+'" }');
 
-        // Register the time at the start of the request
-        d = new Date();
-        startTime = d.getTime();
-        // Get the requested image
-        let urs = ""+req.url; urs = urs.split("/")[1];
-        // Get the file type of the image from image_json and make sure it exists
-        fs.access(__dirname + BASE_PATH + "/i/"+urs+image_json[urs], error => {
-            if (error) {
-                // Doesn't exist, handle request normaly
-                if (req.url === "/") { urs = "/index.html" } else { urs = req.url };
-                fs.access(__dirname + BASE_PATH + "/files"+urs, error => {
-                    if (error) {
-                        // Doesn't exist, send a 404 to the client.
-                        res.status(404).end("404!");
-                        d = new Date();
-                        endTime = d.getTime();
-                        global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${chalk.red("[404]")} ${req.url} ${endTime - startTime}ms`);
-                    } else {
-                        // File does exist, send it back to the client.
-                        res.sendFile(__dirname + BASE_PATH + "/files"+req.url);
-                        d = new Date();
-                        endTime = d.getTime();
-                        global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+        if (req.url.split("?")[0] == "/api/get-stats") {
+            isAPI = true;
+            const filesaa = req.query["f"],
+            spaceaa = req.query["s"];
+            let jsonaa = {};
+            if (filesaa == 1) {
+                let total = 0;
+                jsonaa["files"] = {};
+                for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
+                    jsonaa["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
+                }
+                fs.readdir(__dirname + BASE_PATH + "/i", (err, files) => {
+                    if (err) throw err;
+                    for (var i = 0; i < files.length; i++) {
+                        for (var i1 = 0; i1 < eusConfig.acceptedTypes.length; i1++) {
+                            const jsudfg = files[i].split(".");
+                            if (`.${jsudfg[jsudfg.length-1]}` == eusConfig.acceptedTypes[i1]) {
+                                jsonaa["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
+                                total++;
+                            }
+                        }
                     }
+                    jsonaa["files"]["total"] = total;
+                    if (spaceaa != 1) return res.end(JSON.stringify(jsonaa));
                 });
-            } else {
-                // Image does exist, send it back.
-                res.sendFile(__dirname + BASE_PATH + "/i/"+urs+image_json[urs]);
-                d = new Date();
-                endTime = d.getTime();
-                global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
             }
-        });
+            if (spaceaa == 1) {
+                jsonaa["used"] = "";
+                getSize(__dirname + BASE_PATH + "/i", (err, size) => {
+                    if (err) throw err;
+                    const sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
+                    jsonaa["used"] = `${sizeOfFolder} GB`;
+                    return res.end(JSON.stringify(jsonaa));
+                });
+            }
+        }
+
+        if (!isAPI) {
+            // Register the time at the start of the request
+            d = new Date();
+            startTime = d.getTime();
+            // Get the requested image
+            let urs = ""+req.url; urs = urs.split("/")[1];
+            // Get the file type of the image from image_json and make sure it exists
+            fs.access(__dirname + BASE_PATH + "/i/"+urs+image_json[urs], error => {
+                if (error) {
+                    // Doesn't exist, handle request normaly
+                    if (req.url === "/") { urs = "/index.html" } else { urs = req.url };
+                    fs.access(__dirname + BASE_PATH + "/files"+urs, error => {
+                        if (error) {
+                            // Doesn't exist, send a 404 to the client.
+                            res.status(404).end("404!");
+                            d = new Date();
+                            endTime = d.getTime();
+                            global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${chalk.red("[404]")} ${req.url} ${endTime - startTime}ms`);
+                        } else {
+                            // File does exist, send it back to the client.
+                            res.sendFile(__dirname + BASE_PATH + "/files"+req.url);
+                            d = new Date();
+                            endTime = d.getTime();
+                            global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+                        }
+                    });
+                } else {
+                    // Image does exist, send it back.
+                    res.sendFile(__dirname + BASE_PATH + "/i/"+urs+image_json[urs]);
+                    d = new Date();
+                    endTime = d.getTime();
+                    global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+                }
+            });
+        }
     },
     post:function(req, res) {
         /*
@@ -158,7 +197,7 @@ module.exports = {
                     if (err) throw err;
                     global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${endTime - startTime}ms`);
                     // Send URL of the uploaded image to the client           
-                    res.end(exportURL+""+fileOutName);
+                    res.end(eusConfig.baseURL+""+fileOutName);
                 });
             });
         });
