@@ -60,12 +60,9 @@ fs.access(`${__dirname}${BASE_PATH}/config.json`, error => {
             process.exit(0);
         });
     } else {
-        eusConfig = require(`${__dirname}${BASE_PATH}/image-type.json`);
+        eusConfig = require(`${__dirname}${BASE_PATH}/config.json`);
     }
 });
-
-// Construct the full exported url from the config string and port using javascript magic
-const exportURL = `${eusConfig.baseURL}:${config.server.port}/`;
 
 module.exports = {
     extras:function() {
@@ -158,7 +155,7 @@ module.exports = {
                     if (err) throw err;
                     global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${endTime - startTime}ms`);
                     // Send URL of the uploaded image to the client           
-                    res.end(exportURL+""+fileOutName);
+                    res.end(eusConfig.baseURL+""+fileOutName);
                 });
             });
         });
