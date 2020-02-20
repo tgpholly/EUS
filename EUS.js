@@ -86,6 +86,7 @@ module.exports = {
             spaceaa = req.query["s"];
             let jsonaa = {};
             if (filesaa == 1) {
+                let total = 0;
                 jsonaa["files"] = {};
                 for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
                     jsonaa["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
@@ -97,9 +98,11 @@ module.exports = {
                             const jsudfg = files[i].split(".");
                             if (`.${jsudfg[jsudfg.length-1]}` == eusConfig.acceptedTypes[i1]) {
                                 jsonaa["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
+                                total++;
                             }
                         }
                     }
+                    jsonaa["files"]["total"] = total;
                     if (spaceaa != 1) return res.end(JSON.stringify(jsonaa));
                 });
             }
