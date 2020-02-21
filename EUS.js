@@ -107,11 +107,15 @@ module.exports = {
                 });
             }
             if (spaceaa == 1) {
-                jsonaa["used"] = "";
+                jsonaa["space"] = {};
                 getSize(__dirname + BASE_PATH + "/i", (err, size) => {
                     if (err) throw err;
-                    const sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
-                    jsonaa["used"] = `${sizeOfFolder} GB`;
+                    let sizeOfFolder = (size / 1024 / 1024);
+                    jsonaa["space"]["mb"] = sizeOfFolder;
+                    sizeOfFolder = (size / 1024 / 1024 / 1024);
+                    jsonaa["space"]["gb"] = sizeOfFolder;
+                    sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
+                    jsonaa["space"]["string"] = `${sizeOfFolder} GB`;
                     return res.end(JSON.stringify(jsonaa));
                 });
             }
