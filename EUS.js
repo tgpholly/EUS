@@ -117,6 +117,15 @@ module.exports = {
             }
         }
 
+        if (req.url.split("?")[0] == "/api/get-info") {
+            isAPI = true;
+            let jsonaa = {
+                version: global.internals.version,
+                instance: config["server"]["instance_type"]
+            };
+            return res.end(JSON.stringify(jsonaa));
+        }
+
         if (!isAPI) {
             // Register the time at the start of the request
             d = new Date();
