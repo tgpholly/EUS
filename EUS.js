@@ -76,61 +76,8 @@ module.exports = {
             res - Response from server
         */
         
-        let isAPI = false;
-
-        if (req.query["stat"] == "get") return res.end('{ "status":1, "version":"'+global.internals.version+'" }');
-
-        if (req.url.split("?")[0] == "/api/get-stats") {
-            isAPI = true;
-            const filesaa = req.query["f"],
-            spaceaa = req.query["s"];
-            let jsonaa = {};
-            if (filesaa == 1) {
-                let total = 0;
-                jsonaa["files"] = {};
-                for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
-                    jsonaa["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
-                }
-                fs.readdir(__dirname + BASE_PATH + "/i", (err, files) => {
-                    if (err) throw err;
-                    for (var i = 0; i < files.length; i++) {
-                        for (var i1 = 0; i1 < eusConfig.acceptedTypes.length; i1++) {
-                            const jsudfg = files[i].split(".");
-                            if (`.${jsudfg[jsudfg.length-1]}` == eusConfig.acceptedTypes[i1]) {
-                                jsonaa["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
-                                total++;
-                            }
-                        }
-                    }
-                    jsonaa["files"]["total"] = total;
-                    if (spaceaa != 1) return res.end(JSON.stringify(jsonaa));
-                });
-            }
-            if (spaceaa == 1) {
-                jsonaa["space"] = {};
-                getSize(__dirname + BASE_PATH + "/i", (err, size) => {
-                    if (err) throw err;
-                    let sizeOfFolder = (size / 1024 / 1024);
-                    jsonaa["space"]["mb"] = sizeOfFolder;
-                    sizeOfFolder = (size / 1024 / 1024 / 1024);
-                    jsonaa["space"]["gb"] = sizeOfFolder;
-                    sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
-                    jsonaa["space"]["string"] = `${sizeOfFolder} GB`;
-                    return res.end(JSON.stringify(jsonaa));
-                });
-            }
-        }
-
-        if (req.url.split("?")[0] == "/api/get-info") {
-            isAPI = true;
-            let jsonaa = {
-                version: global.internals.version,
-                instance: config["server"]["instance_type"]
-            };
-            return res.end(JSON.stringify(jsonaa));
-        }
-
-        if (!isAPI) {
+        // Check if returned value is true.
+        if (!req.url.includes("/api/")) {
             // Register the time at the start of the request
             d = new Date();
             startTime = d.getTime();
@@ -164,6 +111,8 @@ module.exports = {
                     global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
                 }
             });
+        } else {
+            return handleAPI(req, res);
         }
     },
     post:function(req, res) {
@@ -214,6 +163,58 @@ module.exports = {
                 });
             });
         });
+    }
+}
+
+function handleAPI(req, res) {
+    if (req.query["stat"] == "get") return res.end('{ "status":1, "version":"'+global.internals.version+'" }');
+
+    if (req.url.split("?")[0] == "/api/get-stats") {
+        const filesaa = req.query["f"],
+        spaceaa = req.query["s"];
+        let jsonaa = {};
+        if (filesaa == 1) {
+            let total = 0;
+            jsonaa["files"] = {};
+            for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
+                jsonaa["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
+            }
+            fs.readdir(__dirname + BASE_PATH + "/i", (err, files) => {
+                if (err) throw err;
+                for (var i = 0; i < files.length; i++) {
+                    for (var i1 = 0; i1 < eusConfig.acceptedTypes.length; i1++) {
+                        const jsudfg = files[i].split(".");
+                        if (`.${jsudfg[jsudfg.length-1]}` == eusConfig.acceptedTypes[i1]) {
+                            jsonaa["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
+                            total++;
+                        }
+                    }
+                }
+                jsonaa["files"]["total"] = total;
+                if (spaceaa != 1) return res.end(JSON.stringify(jsonaa));
+            });
+        }
+        if (spaceaa == 1) {
+            jsonaa["space"] = {};
+            getSize(__dirname + BASE_PATH + "/i", (err, size) => {
+                if (err) throw err;
+                let sizeOfFolder = (size / 1024 / 1024);
+                jsonaa["space"]["mb"] = sizeOfFolder;
+                sizeOfFolder = (size / 1024 / 1024 / 1024);
+                jsonaa["space"]["gb"] = sizeOfFolder;
+                sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
+                jsonaa["space"]["string"] = `${sizeOfFolder} GB`;
+                return res.end(JSON.stringify(jsonaa));
+            });
+        }
+    }
+
+    if (req.url.split("?")[0] == "/api/get-info") {
+        let jsonaa = {
+            version: global.internals.version,
+            instance: config["server"]["instance_type"]
+        };
+        return res.end(JSON.stringify(jsonaa));
     }
 }
 
