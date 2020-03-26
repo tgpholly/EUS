@@ -1,22 +1,22 @@
 const fs = require("fs"),
-config = require("../config/config.json"),
-chalk = require("chalk"),
-busboy = require("connect-busboy"),
-randomstring = require("randomstring"),
-getSize = require('get-folder-size'),
-emoji = require("../misc/emoji_list.json");
+      config = require("../config/config.json"),
+      chalk = require("chalk"),
+      busboy = require("connect-busboy"),
+      randomstring = require("randomstring"),
+      getSize = require('get-folder-size'),
+      emoji = require("../misc/emoji_list.json");
 
 // Defines the function of this module
 const MODULE_FUNCTION = "handle_requests",
 
-// Base path for module folder creation and navigation
-BASE_PATH = "/EUS";
+      // Base path for module folder creation and navigation
+      BASE_PATH = "/EUS";
 
 let eusConfig = {},
-image_json = {},
-d = new Date(),
-startTime,
-endTime;
+    image_json = {},
+    d = new Date(),
+    startTime,
+    endTime;
 
 // Only ran on startup so using sync functions is fine
 // Makes the folder for files of the module
@@ -38,7 +38,7 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/i")) {
 fs.access(`${__dirname}${BASE_PATH}/image-type.json`, error => {
     if (error) {
         // Doesn't exist, create it.
-        fs.writeFile(`${__dirname}${BASE_PATH}/image-type.json`, '{\n\}', function(err) {
+        fs.writeFile(`${__dirname}${BASE_PATH}/image-type.json`, '{\n}', function(err) {
             if (err) throw err;
             global.modules.consoleHelper.printInfo(emoji.heavy_check, "Created image-type File!");
             // File has been created, load it.
@@ -167,48 +167,70 @@ module.exports = {
 }
 
 function handleAPI(req, res) {
+
+    // Status check for ESL to make sure EUS is online
     if (req.query["stat"] == "get") return res.end('{ "status":1, "version":"'+global.internals.version+'" }');
 
+    /*  Stats api endpoint
+        Query inputs
+          f : Values [0,1]
+          s : Values [0,1]
+    */
     if (req.url.split("?")[0] == "/api/get-stats") {
         const filesaa = req.query["f"],
         spaceaa = req.query["s"];
         let jsonaa = {};
+        // If total files is asked for
         if (filesaa == 1) {
             let total = 0;
             jsonaa["files"] = {};
+            // Add each accepted file type to the json
             for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
                 jsonaa["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
             }
+            // Read all files from the images directory
             fs.readdir(__dirname + BASE_PATH + "/i", (err, files) => {
                 if (err) throw err;
+                // Loop through all files
                 for (var i = 0; i < files.length; i++) {
+                    // Loop through all accepted file types to check for a match
                     for (var i1 = 0; i1 < eusConfig.acceptedTypes.length; i1++) {
                         const jsudfg = files[i].split(".");
                         if (`.${jsudfg[jsudfg.length-1]}` == eusConfig.acceptedTypes[i1]) {
+                            // There is a match! Add it to the json
                             jsonaa["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
+                            // Also increase the total
                             total++;
                         }
                     }
                 }
+                // Set the total in the json to the calculated total value
                 jsonaa["files"]["total"] = total;
+
+                // If getting the space used on the server isn't required send the json
                 if (spaceaa != 1) return res.end(JSON.stringify(jsonaa));
             });
         }
+        // Getting space is required
         if (spaceaa == 1) {
             jsonaa["space"] = {};
+            // Get the space used on the disk
             getSize(__dirname + BASE_PATH + "/i", (err, size) => {
                 if (err) throw err;
+                // Calculate in different units the space taken up on disk
                 let sizeOfFolder = (size / 1024 / 1024);
                 jsonaa["space"]["mb"] = sizeOfFolder;
                 sizeOfFolder = (size / 1024 / 1024 / 1024);
                 jsonaa["space"]["gb"] = sizeOfFolder;
                 sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
                 jsonaa["space"]["string"] = `${sizeOfFolder} GB`;
+                // Send the json to the requesting client
                 return res.end(JSON.stringify(jsonaa));
             });
         }
     }
 
+    // Information API
     if (req.url.split("?")[0] == "/api/get-info") {
         let jsonaa = {
             version: global.internals.version,
