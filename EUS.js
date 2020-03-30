@@ -123,7 +123,7 @@ module.exports = {
 
         // Make sure the endpoint is /upload
         // If it isn't upload send an empty response
-        if (req.url != "/upload") return req.end("");
+        if (req.url != "/upload") return res.end("");
 
         // Get time at the start of upload
         d = new Date(); startTime = d.getTime();
