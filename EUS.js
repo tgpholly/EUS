@@ -76,6 +76,15 @@ module.exports = {
             res - Response from server
         */
         
+        // Set some headers
+        res.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+        res.set("X-XSS-Protection", "1; mode=block");
+        res.set("Feature-Policy", "fullscreen 'none'");
+        res.set("Referrer-Policy", "strict-origin-when-cross-origin");
+        res.set("Content-Security-Policy", "block-all-mixed-content;frame-ancestors 'self'");
+        res.set("X-Frame-Options", "SAMEORIGIN");
+        res.set("X-Content-Type-Options", "nosniff");
+
         // Check if returned value is true.
         if (!req.url.includes("/api/")) {
             // Register the time at the start of the request
