@@ -175,6 +175,11 @@ module.exports = {
         if (req.url != "/upload") return res.end("");
 
         // Get time at the start of upload
+
+        if (useUploadKey) {
+            if (eusConfig["uploadKey"] != req.query["key"]) return res.end("Incorrect key provided for upload");
+        }
+
         d = new Date(); startTime = d.getTime();
         var fstream;
         var thefe;
