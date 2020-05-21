@@ -86,43 +86,41 @@ module.exports = {
         res.set("X-Content-Type-Options", "nosniff");
 
         // Check if returned value is true.
-        if (!req.url.includes("/api/")) {
-            // Register the time at the start of the request
-            d = new Date();
-            startTime = d.getTime();
-            // Get the requested image
-            let urs = ""+req.url; urs = urs.split("/")[1];
-            // Get the file type of the image from image_json and make sure it exists
-            fs.access(__dirname + BASE_PATH + "/i/"+urs+image_json[urs], error => {
-                if (error) {
-                    // Doesn't exist, handle request normaly
-                    if (req.url === "/") { urs = "/index.html" } else { urs = req.url };
-                    fs.access(__dirname + BASE_PATH + "/files"+urs, error => {
-                        if (error) {
-                            // Doesn't exist, send a 404 to the client.
-                            res.status(404).end("404!");
-                            d = new Date();
-                            endTime = d.getTime();
-                            global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${chalk.red("[404]")} ${req.url} ${endTime - startTime}ms`);
-                        } else {
-                            // File does exist, send it back to the client.
-                            res.sendFile(__dirname + BASE_PATH + "/files"+req.url);
-                            d = new Date();
-                            endTime = d.getTime();
-                            global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
-                        }
-                    });
-                } else {
-                    // Image does exist, send it back.
-                    res.sendFile(__dirname + BASE_PATH + "/i/"+urs+image_json[urs]);
-                    d = new Date();
-                    endTime = d.getTime();
-                    global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
-                }
-            });
-        } else {
-            return handleAPI(req, res);
-        }
+        if (req.url.includes("/api/")) return handleAPI(req, res);
+
+        // Register the time at the start of the request
+        d = new Date();
+        startTime = d.getTime();
+        // Get the requested image
+        let urs = ""+req.url; urs = urs.split("/")[1];
+        // Get the file type of the image from image_json and make sure it exists
+        fs.access(__dirname + BASE_PATH + "/i/"+urs+image_json[urs], error => {
+            if (error) {
+                // Doesn't exist, handle request normaly
+                if (req.url === "/") { urs = "/index.html" } else { urs = req.url };
+                fs.access(__dirname + BASE_PATH + "/files"+urs, error => {
+                    if (error) {
+                        // Doesn't exist, send a 404 to the client.
+                        res.status(404).end("404!");
+                        d = new Date();
+                        endTime = d.getTime();
+                        global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${chalk.red("[404]")} ${req.url} ${endTime - startTime}ms`);
+                    } else {
+                        // File does exist, send it back to the client.
+                        res.sendFile(__dirname + BASE_PATH + "/files"+req.url);
+                        d = new Date();
+                        endTime = d.getTime();
+                        global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+                    }
+                });
+            } else {
+                // Image does exist, send it back.
+                res.sendFile(__dirname + BASE_PATH + "/i/"+urs+image_json[urs]);
+                d = new Date();
+                endTime = d.getTime();
+                global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+            }
+        });
     },
     post:function(req, res) {
         /*
