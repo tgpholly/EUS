@@ -16,7 +16,8 @@ let eusConfig = {},
     image_json = {},
     d = new Date(),
     startTime,
-    endTime;
+    endTime,
+    useUploadKey = true;
 
 // Only ran on startup so using sync functions is fine
 // Makes the folder for files of the module
@@ -53,7 +54,7 @@ fs.access(`${__dirname}${BASE_PATH}/image-type.json`, error => {
 fs.access(`${__dirname}${BASE_PATH}/config.json`, error => {
     if (error) {
         // Config doesn't exist, make it.
-        fs.writeFile(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t]\n}', function(err) {
+        fs.writeFile(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": ""\n}', function(err) {
             if (err) throw err;
             global.modules.consoleHelper.printInfo(emoji.heavy_check, "Created config File!");
             global.modules.consoleHelper.printInfo(emoji.wave, "Please edit the EUS Config file before restarting.");
@@ -62,8 +63,49 @@ fs.access(`${__dirname}${BASE_PATH}/config.json`, error => {
         });
     } else {
         eusConfig = require(`${__dirname}${BASE_PATH}/config.json`);
+        if (validateConfig(eusConfig)) global.modules.consoleHelper.printInfo(emoji.thumb_up, "EUS config passed all checks");
     }
 });
+
+function validateConfig(json) {
+    let performShutdownAfterValidation = false;
+    // URL Tests
+    if (json["baseURL"] == null) {
+        global.modules.consoleHelper.printError(emoji.dizzy, "EUS baseURL property does not exist!");
+        performShutdownAfterValidation = true;
+    } else {
+        if (json["baseURL"] == "")
+        global.modules.consoleHelper.printWarn(emoji.dizzy, "EUS baseURL property is blank");
+        const bURL = `${json["baseURL"]}`.split("");
+        if (bURL.length > 1) { 
+            if (bURL[bURL.length-1] != "/") global.modules.consoleHelper.printWarn(emoji.dizzy, "EUS baseURL property doesn't have a / at the end, this can lead to unpredictable results!");
+        }
+        else {
+            if (json["baseURL"] != "http://" || json["baseURL"] != "https://") global.modules.consoleHelper.printWarn(emoji.dizzy, "EUS baseURL property is possibly invalid!");
+        }
+    }
+    // acceptedTypes checks
+    if (json["acceptedTypes"] == null) {
+        global.modules.consoleHelper.printError(emoji.dizzy, "EUS acceptedTypes array does not exist!");
+        performShutdownAfterValidation = true;
+    } else {
+        if (json["acceptedTypes"].length < 1) global.modules.consoleHelper.printWarn(emoji.dizzy, "EUS acceptedTypes array has no extentions in it, users will not be able to upload images!");
+    }
+    // uploadKey checks
+    if (json["uploadKey"] == null) {
+        global.modules.consoleHelper.printError(emoji.dizzy, "EUS uploadKey property does not exist!");
+        performShutdownAfterValidation = true;
+    } else {
+        if (json["uploadKey"] == "") useUploadKey = false;
+    }
+
+    // Check if server needs to be shutdown
+    if (performShutdownAfterValidation) {
+        global.modules.consoleHelper.printError(emoji.cross, "EUS config properties are missing, refer to docs for more details (https://docs.ethanus.ml)");
+        process.exit(1);
+    }
+    else return true;
+}
 
 module.exports = {
     extras:function() {
