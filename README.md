@@ -2,7 +2,11 @@
   <img width="150" height="150" src="http://ethanus.ml/images/logo.png">
 </p>
 <p align="center">
-  EUS is my public screenshot server
+  EUS is my public screenshot server<br>
+</p>
+<p align="center">
+  <a href="https://www.codefactor.io/repository/github/tgpethan/eus/overview/master"><img src="https://www.codefactor.io/repository/github/tgpethan/eus/badge/master"></a>
+  <a src="https://discord.gg/BV8QGn6"><img src="https://img.shields.io/discord/477024246959308810?color=7289da&label=Discord&logo=discord&logoColor=ffffff"></a>
 </p>
 
 ## Setup
