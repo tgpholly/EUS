@@ -212,6 +212,7 @@ module.exports = {
 }
 
 function handleAPI(req, res) {
+    let jsonaa = {}, filesaa = 0, spaceaa = 0;
     switch (req.url.split("?")[0]) {
         // Status check to see the onlint status of EUS
         // Used by ESL to make sure EUS is online
@@ -224,9 +225,9 @@ function handleAPI(req, res) {
               s : Values [0,1]
         */
         case "/api/get-stats":
-            const filesaa = req.query["f"],
+            filesaa = req.query["f"];
             spaceaa = req.query["s"];
-            let jsonaa = {};
+            jsonaa = {};
             // If total files is asked for
             if (filesaa == 1) {
                 let total = 0;
@@ -281,11 +282,10 @@ function handleAPI(req, res) {
 
         // Information API
         case "/api/get-info":
-            let jsona = {
+            return res.end(JSON.stringify({
                 version: global.internals.version,
                 instance: config["server"]["instance_type"]
-            };
-        return res.end(JSON.stringify(jsona));
+            }));
     }
 }
 
