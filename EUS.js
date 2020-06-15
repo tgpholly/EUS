@@ -36,10 +36,10 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/i")) {
     console.log(`[EUS] Made EUS images folder`);
 }
 // Makes the image-type file
-if (fs.existsSync(__dirname + BASE_PATH + "image-type.json")) {
+if (!fs.existsSync(__dirname + BASE_PATH + "/image-type.json")) {
     // Doesn't exist, create it.
     fs.writeFileSync(`${__dirname}${BASE_PATH}/image-type.json`, '{}');
-    console.log("[EUS] Created image-type File!");
+    console.log("[EUS] Made EUS image-type File!");
     // File has been created, load it.
     image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
 } else {
@@ -48,10 +48,10 @@ if (fs.existsSync(__dirname + BASE_PATH + "image-type.json")) {
 }
 
 // Makes the config file
-if (fs.existsSync(__dirname + BASE_PATH + "config.json")) {
+if (!fs.existsSync(__dirname + BASE_PATH + "/config.json")) {
     // Config doesn't exist, make it.
     fs.writeFileSync(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": ""\n}');
-    console.log("[EUS] Created config File!");
+    console.log("[EUS] Made EUS config File!");
     console.log("[EUS] Please edit the EUS Config file before restarting.");
     // Config has been made, close framework.
     process.exit(0);
@@ -93,7 +93,10 @@ function validateConfig(json) {
     }
 
     // Check if server needs to be shutdown
-    if (performShutdownAfterValidation) throw "EUS config properties are missing, refer to docs for more details (https://docs.ethanus.ml)";
+    if (performShutdownAfterValidation) {
+        console.error("EUS config properties are missing, refer to docs for more details (https://docs.ethanus.ml)");
+        process.exit(1);
+    }
     else return true;
 }
 
@@ -166,9 +169,7 @@ module.exports = {
 
         // Get time at the start of upload
 
-        if (useUploadKey) {
-            if (eusConfig["uploadKey"] != req.header("key")) return res.end("Incorrect key provided for upload");
-        }
+        if (useUploadKey && eusConfig["uploadKey"] != req.header("key")) return res.end("Incorrect key provided for upload");
 
         d = new Date(); startTime = d.getTime();
         var fstream;
@@ -211,76 +212,80 @@ module.exports = {
 }
 
 function handleAPI(req, res) {
-
-    // Status check for ESL to make sure EUS is online
-    if (req.query["stat"] == "get") return res.end('{ "status":1, "version":"'+global.internals.version+'" }');
-
-    /*  Stats api endpoint
-        Query inputs
-          f : Values [0,1]
-          s : Values [0,1]
-    */
-    if (req.url.split("?")[0] == "/api/get-stats") {
-        const filesaa = req.query["f"],
-        spaceaa = req.query["s"];
-        let jsonaa = {};
-        // If total files is asked for
-        if (filesaa == 1) {
-            let total = 0;
-            jsonaa["files"] = {};
-            // Add each accepted file type to the json
-            for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
-                jsonaa["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
-            }
-            // Read all files from the images directory
-            fs.readdir(__dirname + BASE_PATH + "/i", (err, files) => {
-                if (err) throw err;
-                // Loop through all files
-                for (var i = 0; i < files.length; i++) {
-                    // Loop through all accepted file types to check for a match
-                    for (var i1 = 0; i1 < eusConfig.acceptedTypes.length; i1++) {
-                        const jsudfg = files[i].split(".");
-                        if (`.${jsudfg[jsudfg.length-1]}` == eusConfig.acceptedTypes[i1]) {
-                            // There is a match! Add it to the json
-                            jsonaa["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
-                            // Also increase the total
-                            total++;
+    switch (req.url.split("?")[0]) {
+        // Status check to see the onlint status of EUS
+        // Used by ESL to make sure EUS is online
+        case "/api/get-server-status":
+            return res.end('{ "status":1, "version":"'+global.internals.version+'" }');
+        
+        /*  Stats api endpoint
+            Query inputs
+              f : Values [0,1]
+              s : Values [0,1]
+        */
+        case "/api/get-stats":
+            const filesaa = req.query["f"],
+            spaceaa = req.query["s"];
+            let jsonaa = {};
+            // If total files is asked for
+            if (filesaa == 1) {
+                let total = 0;
+                jsonaa["files"] = {};
+                // Add each accepted file type to the json
+                for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
+                    jsonaa["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
+                }
+                // Read all files from the images directory
+                fs.readdir(__dirname + BASE_PATH + "/i", (err, files) => {
+                    if (err) throw err;
+                    // Loop through all files
+                    for (var i = 0; i < files.length; i++) {
+                        // Loop through all accepted file types to check for a match
+                        for (var i1 = 0; i1 < eusConfig.acceptedTypes.length; i1++) {
+                            const jsudfg = files[i].split(".");
+                            if (`.${jsudfg[jsudfg.length-1]}` == eusConfig.acceptedTypes[i1]) {
+                                // There is a match! Add it to the json
+                                jsonaa["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
+                                // Also increase the total
+                                total++;
+                            }
                         }
                     }
-                }
-                // Set the total in the json to the calculated total value
-                jsonaa["files"]["total"] = total;
+                    // Set the total in the json to the calculated total value
+                    jsonaa["files"]["total"] = total;
+    
+                    // If getting the space used on the server isn't required send the json
+                    if (spaceaa != 1) return res.end(JSON.stringify(jsonaa));
+                });
+            }
+            // Getting space is required
+            if (spaceaa == 1) {
+                jsonaa["space"] = {};
+                // Get the space used on the disk
+                getSize(__dirname + BASE_PATH + "/i", (err, size) => {
+                    if (err) throw err;
+                    // Calculate in different units the space taken up on disk
+                    let sizeOfFolder = (size / 1024 / 1024);
+                    jsonaa["space"]["mb"] = sizeOfFolder;
+                    sizeOfFolder = (size / 1024 / 1024 / 1024);
+                    jsonaa["space"]["gb"] = sizeOfFolder;
+                    sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
+                    jsonaa["space"]["string"] = `${sizeOfFolder} GB`;
+                    // Send the json to the requesting client
+                    return res.end(JSON.stringify(jsonaa));
+                });
+            }
 
-                // If getting the space used on the server isn't required send the json
-                if (spaceaa != 1) return res.end(JSON.stringify(jsonaa));
-            });
-        }
-        // Getting space is required
-        if (spaceaa == 1) {
-            jsonaa["space"] = {};
-            // Get the space used on the disk
-            getSize(__dirname + BASE_PATH + "/i", (err, size) => {
-                if (err) throw err;
-                // Calculate in different units the space taken up on disk
-                let sizeOfFolder = (size / 1024 / 1024);
-                jsonaa["space"]["mb"] = sizeOfFolder;
-                sizeOfFolder = (size / 1024 / 1024 / 1024);
-                jsonaa["space"]["gb"] = sizeOfFolder;
-                sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
-                jsonaa["space"]["string"] = `${sizeOfFolder} GB`;
-                // Send the json to the requesting client
-                return res.end(JSON.stringify(jsonaa));
-            });
-        }
-    }
+            if (filesaa != 1 && spaceaa != 1) return res.end("Please add f and or s to your queries to get the files and space");
+        break;
 
-    // Information API
-    if (req.url.split("?")[0] == "/api/get-info") {
-        let jsonaa = {
-            version: global.internals.version,
-            instance: config["server"]["instance_type"]
-        };
-        return res.end(JSON.stringify(jsonaa));
+        // Information API
+        case "/api/get-info":
+            let jsona = {
+                version: global.internals.version,
+                instance: config["server"]["instance_type"]
+            };
+        return res.end(JSON.stringify(jsona));
     }
 }
 
