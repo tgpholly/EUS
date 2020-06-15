@@ -2,11 +2,13 @@
   <img width="150" height="150" src="http://ethanus.ml/images/logo.png">
 </p>
 <p align="center">
-  EUS is my public screenshot server
+  EUS is my public screenshot server<br>
+</p>
+<p align="center">
+  <a href="https://www.codefactor.io/repository/github/tgpethan/eus/overview/master"><img src="https://www.codefactor.io/repository/github/tgpethan/eus/badge/master"></a>
+  <a src="https://discord.gg/BV8QGn6"><img src="https://img.shields.io/discord/477024246959308810?color=7289da&label=Discord&logo=discord&logoColor=ffffff"></a>
 </p>
 
-[![CodeFactor](https://www.codefactor.io/repository/github/tgpethan/eus/badge/master)](https://www.codefactor.io/repository/github/tgpethan/eus/overview/master)
-[![Discord](https://img.shields.io/discord/477024246959308810?color=7289da&label=Discord&logo=discord&logoColor=ffffff)](https://discord.gg/BV8QGn6)
 ## Setup
 
 EUS has extra dependencies other than those of [Revolution](https://github.com/tgpethan/Revolution), the server EUS is made on, of which include:
