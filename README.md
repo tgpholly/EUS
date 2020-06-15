@@ -13,6 +13,6 @@ EUS has extra dependencies other than those of [Revolution](https://github.com/t
  
 Install the dependencies and then simply drop the EUS.js into a Revolution instance's modules folder **(If you still have [example_request_handler.js](https://github.com/tgpethan/Revolution/blob/master/modules/example_request_handler.js) be sure to delete it!)**
 
-If this is running at a URL then you can define the url to build from in the config with the **baseURL** property. Just don't put a / at the end!
+If this is running at a URL then you can define the url to build from in the config with the **baseURL** property. Remember to put a / at the end or the url will be malformed!
 
 If you want to expand the files that the server allows to be sent to it this can be done in the **allowedTypes** array
