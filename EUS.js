@@ -36,74 +36,64 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/i")) {
     console.log(`[EUS] Made EUS images folder`);
 }
 // Makes the image-type file
-fs.access(`${__dirname}${BASE_PATH}/image-type.json`, error => {
-    if (error) {
-        // Doesn't exist, create it.
-        fs.writeFile(`${__dirname}${BASE_PATH}/image-type.json`, '{\n}', function(err) {
-            if (err) throw err;
-            global.modules.consoleHelper.printInfo(emoji.heavy_check, "Created image-type File!");
-            // File has been created, load it.
-            image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
-        });
-    } else {
-        // File already exists, load it.
-        image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
-    }
-});
+if (fs.existsSync(__dirname + BASE_PATH + "image-type.json")) {
+    // Doesn't exist, create it.
+    fs.writeFileSync(`${__dirname}${BASE_PATH}/image-type.json`, '{}');
+    console.log("[EUS] Created image-type File!");
+    // File has been created, load it.
+    image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
+} else {
+    // File already exists, load it.
+    image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
+}
+
 // Makes the config file
-fs.access(`${__dirname}${BASE_PATH}/config.json`, error => {
-    if (error) {
-        // Config doesn't exist, make it.
-        fs.writeFile(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": ""\n}', function(err) {
-            if (err) throw err;
-            global.modules.consoleHelper.printInfo(emoji.heavy_check, "Created config File!");
-            global.modules.consoleHelper.printInfo(emoji.wave, "Please edit the EUS Config file before restarting.");
-            // Config has been made, close framework.
-            process.exit(0);
-        });
-    } else {
-        eusConfig = require(`${__dirname}${BASE_PATH}/config.json`);
-        if (validateConfig(eusConfig)) global.modules.consoleHelper.printInfo(emoji.thumb_up, "EUS config passed all checks");
-    }
-});
+if (fs.existsSync(__dirname + BASE_PATH + "config.json")) {
+    // Config doesn't exist, make it.
+    fs.writeFileSync(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": ""\n}');
+    console.log("[EUS] Created config File!");
+    console.log("[EUS] Please edit the EUS Config file before restarting.");
+    // Config has been made, close framework.
+    process.exit(0);
+} else {
+    eusConfig = require(`${__dirname}${BASE_PATH}/config.json`);
+    if (validateConfig(eusConfig)) console.log("[EUS] EUS config passed all checks");
+}
 
 function validateConfig(json) {
     let performShutdownAfterValidation = false;
     // URL Tests
     if (json["baseURL"] == null) {
-        global.modules.consoleHelper.printError(emoji.dizzy, "EUS baseURL property does not exist!");
+        console.error("EUS baseURL property does not exist!");
         performShutdownAfterValidation = true;
     } else {
         if (json["baseURL"] == "")
-        global.modules.consoleHelper.printWarn(emoji.dizzy, "EUS baseURL property is blank");
+        console.warn("EUS baseURL property is blank");
         const bURL = `${json["baseURL"]}`.split("");
         if (bURL.length > 1) { 
-            if (bURL[bURL.length-1] != "/") global.modules.consoleHelper.printWarn(emoji.dizzy, "EUS baseURL property doesn't have a / at the end, this can lead to unpredictable results!");
+            if (bURL[bURL.length-1] != "/") console.warn("EUS baseURL property doesn't have a / at the end, this can lead to unpredictable results!");
         }
         else {
-            if (json["baseURL"] != "http://" || json["baseURL"] != "https://") global.modules.consoleHelper.printWarn(emoji.dizzy, "EUS baseURL property is possibly invalid!");
+            if (json["baseURL"] != "http://" || json["baseURL"] != "https://") console.warn("EUS baseURL property is possibly invalid!");
         }
     }
     // acceptedTypes checks
     if (json["acceptedTypes"] == null) {
-        global.modules.consoleHelper.printError(emoji.dizzy, "EUS acceptedTypes array does not exist!");
+        console.error("EUS acceptedTypes array does not exist!");
         performShutdownAfterValidation = true;
     } else {
-        if (json["acceptedTypes"].length < 1) global.modules.consoleHelper.printWarn(emoji.dizzy, "EUS acceptedTypes array has no extentions in it, users will not be able to upload images!");
+        if (json["acceptedTypes"].length < 1) console.warn("EUS acceptedTypes array has no extentions in it, users will not be able to upload images!");
     }
     // uploadKey checks
     if (json["uploadKey"] == null) {
-        global.modules.consoleHelper.printError(emoji.dizzy, "EUS uploadKey property does not exist!");
+        console.error("EUS uploadKey property does not exist!");
         performShutdownAfterValidation = true;
     } else {
         if (json["uploadKey"] == "") useUploadKey = false;
     }
 
     // Check if server needs to be shutdown
-    if (performShutdownAfterValidation) {
-        global.modules.consoleHelper.printError(emoji.cross, "EUS config properties are missing, refer to docs for more details (https://docs.ethanus.ml)");
-        process.exit(1);
-    }
+    if (performShutdownAfterValidation) throw "EUS config properties are missing, refer to docs for more details (https://docs.ethanus.ml)";
     else return true;
 }
 
