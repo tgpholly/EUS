@@ -129,7 +129,7 @@ module.exports = {
         fs.access(__dirname + BASE_PATH + "/i/"+urs+image_json[urs], error => {
             if (error) {
                 // Doesn't exist, handle request normaly
-                if (req.url === "/") { urs = "/index.html" } else { urs = req.url };
+                if (req.url === "/") { urs = "/index.html" } else { urs = req.url }
                 fs.access(__dirname + BASE_PATH + "/files"+urs, error => {
                     if (error) {
                         // Doesn't exist, send a 404 to the client.
