@@ -38,12 +38,10 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/i")) {
 // Makes the image-type file
 if (fs.existsSync(__dirname + BASE_PATH + "image-type.json")) {
     // Doesn't exist, create it.
-    fs.writeFile(`${__dirname}${BASE_PATH}/image-type.json`, '{\n}', function(err) {
-        if (err) throw err;
-        console.log("[EUS] Created image-type File!");
-        // File has been created, load it.
-        image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
-    });
+    fs.writeFileSync(`${__dirname}${BASE_PATH}/image-type.json`, '{}');
+    console.log("[EUS] Created image-type File!");
+    // File has been created, load it.
+    image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
 } else {
     // File already exists, load it.
     image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
@@ -52,13 +50,11 @@ if (fs.existsSync(__dirname + BASE_PATH + "image-type.json")) {
 // Makes the config file
 if (fs.existsSync(__dirname + BASE_PATH + "config.json")) {
     // Config doesn't exist, make it.
-    fs.writeFile(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": ""\n}', function(err) {
-        if (err) throw err;
-        console.log("[EUS] Created config File!");
-        console.log("[EUS] Please edit the EUS Config file before restarting.");
-        // Config has been made, close framework.
-        process.exit(0);
-    });
+    fs.writeFileSync(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": ""\n}');
+    console.log("[EUS] Created config File!");
+    console.log("[EUS] Please edit the EUS Config file before restarting.");
+    // Config has been made, close framework.
+    process.exit(0);
 } else {
     eusConfig = require(`${__dirname}${BASE_PATH}/config.json`);
     if (validateConfig(eusConfig)) console.log("[EUS] EUS config passed all checks");
