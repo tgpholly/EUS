@@ -5,6 +5,8 @@
   EUS is my public screenshot server
 </p>
 
+[![CodeFactor](https://www.codefactor.io/repository/github/tgpethan/eus/badge/master)](https://www.codefactor.io/repository/github/tgpethan/eus/overview/master)
+[![Discord](https://img.shields.io/discord/477024246959308810?color=7289da&label=Discord&logo=discord&logoColor=ffffff)](https://discord.gg/BV8QGn6)
 ## Setup
 
 EUS has extra dependencies other than those of [Revolution](https://github.com/tgpethan/Revolution), the server EUS is made on, of which include:
