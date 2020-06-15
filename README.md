@@ -1,18 +1,29 @@
-<h1 align="center">
+<p align="center">
   <img width="150" height="150" src="http://ethanus.ml/images/logo.png">
-</h1>
-<p align="center">readme soon™</p>
-<h1 align="center">
-  Setup
-</h1>
+</p>
+<p align="center">
+  EUS is my public screenshot server
+</p>
 
-EUS has extra dependencies other than those of [Revolution](https://github.com/tgpethan/Revolution)'s base, of which include:
+## Setup
+
+EUS has extra dependencies other than those of [Revolution](https://github.com/tgpethan/Revolution), the server EUS is made on, of which include:
  - [connect-busboy](https://www.npmjs.com/package/connect-busboy)
  - [randomstring](https://www.npmjs.com/package/randomstring)
  - [get-folder-size](https://www.npmjs.com/package/get-folder-size)
  
 Install the dependencies and then simply drop the EUS.js into a Revolution instance's modules folder **(If you still have [example_request_handler.js](https://github.com/tgpethan/Revolution/blob/master/modules/example_request_handler.js) be sure to delete it!)**
 
-If this is running at a URL then you can define the url to build from in the config with the **baseURL** property. Remember to put a / at the end or the url will be malformed!
+## Config
+On first startup EUS will create a new config file in the **modules/EUS/** folder, some of these values may need to be changed depending on your use case.
 
-If you want to expand the files that the server allows to be sent to it this can be done in the **allowedTypes** array
+The value of **baseURL** will need to be changed to what you access the server from, for example if the server's ip is 192.168.1.100 and you are not planning to use EUS at a url you would change the value to **http://192.168.1.100/**. **baseURL** is used to construct the response url for file uploads, for example the value of **baseURL** on my instance of EUS is **https://ethanus.ml/**.
+
+If you want to expand the files that the server allows to be sent to it this can be done in the **allowedTypes** array. By default the array contains **png, jpg and gif**.
+
+The value of **uploadKey** is used to restrict who can upload to your server, set this to something and the server will restrict who can upload depending on if they provided the key or not. If this field is left blank EUS will asume you don't want an upload key and uploads to it will be unrestricted
+
+## API
+EUS has 3 apis, they are located at **/api/get-stats**, **/api/get-info** and **/api/get-server-status/**
+
+[These are better documented on the docs](https://docs.ethanus.ml)
