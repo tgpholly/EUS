@@ -32,5 +32,3 @@ EUS has 3 apis, they are located at **[/api/get-stats](https://ethanus.ml/api/ge
 
 ## Websites that use EUS
 [EUS](https://ethanus.ml)
-
-[Jack Images](https://jackimages.ml)
