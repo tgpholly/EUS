@@ -281,6 +281,7 @@ function handleAPI(req, res) {
                     sizeOfFolder = (size / 1024 / 1024 / 1024);
                     jsonaa["space"]["usage"]["gb"] = sizeOfFolder;
                     jsonaa["space"]["usage"]["string"] = spaceToLowest(size, true);
+                    // Get total disk space
                     diskUsage.check(__dirname, (err, data) => {
                         if (err) throw err;
                         jsonaa["space"]["total"] = {
