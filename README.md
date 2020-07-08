@@ -13,6 +13,7 @@ EUS has extra dependencies other than those of [Revolution](https://github.com/t
  - [connect-busboy](https://www.npmjs.com/package/connect-busboy)
  - [randomstring](https://www.npmjs.com/package/randomstring)
  - [get-folder-size](https://www.npmjs.com/package/get-folder-size)
+ - [diskusage](https://www.npmjs.com/package/diskusage)
  
 Install the dependencies and then simply drop the EUS.js into a Revolution instance's modules folder **(If you still have [example_request_handler.js](https://github.com/tgpethan/Revolution/blob/master/modules/example_request_handler.js) be sure to delete it!)**
 
