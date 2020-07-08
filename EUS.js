@@ -281,8 +281,6 @@ function handleAPI(req, res) {
                     sizeOfFolder = (size / 1024 / 1024 / 1024);
                     jsonaa["space"]["usage"]["gb"] = sizeOfFolder;
                     jsonaa["space"]["usage"]["string"] = spaceToLowest(size, true);
-                    // Send the json to the requesting client
-                    d = new Date(); endTime = d.getTime();
                     diskUsage.check(__dirname, (err, data) => {
                         if (err) throw err;
                         jsonaa["space"]["total"] = {
@@ -293,6 +291,8 @@ function handleAPI(req, res) {
                             string: spaceToLowest(data["total"], true)
                         };
                     });
+                    // Send the json to the requesting client
+                    d = new Date(); endTime = d.getTime();
                     global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
                     return res.end(JSON.stringify(jsonaa));
                 });
