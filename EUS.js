@@ -3,7 +3,8 @@ const fs = require("fs"),
       chalk = require("chalk"),
       busboy = require("connect-busboy"),
       randomstring = require("randomstring"),
-      getSize = require('get-folder-size'),
+      getSize = require("get-folder-size"),
+      diskUsage = require("diskusage")
       emoji = require("../misc/emoji_list.json");
 
 // Defines the function of this module
@@ -268,19 +269,31 @@ function handleAPI(req, res) {
             }
             // Getting space is required
             if (spaceaa == 1) {
-                jsonaa["space"] = {};
+                jsonaa["space"] = {
+                    usage: {}
+                };
                 // Get the space used on the disk
                 getSize(__dirname + BASE_PATH + "/i", (err, size) => {
                     if (err) throw err;
                     // Calculate in different units the space taken up on disk
                     let sizeOfFolder = (size / 1024 / 1024);
-                    jsonaa["space"]["mb"] = sizeOfFolder;
+                    jsonaa["space"]["usage"]["mb"] = sizeOfFolder;
                     sizeOfFolder = (size / 1024 / 1024 / 1024);
-                    jsonaa["space"]["gb"] = sizeOfFolder;
+                    jsonaa["space"]["usage"]["gb"] = sizeOfFolder;
                     sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
-                    jsonaa["space"]["string"] = `${sizeOfFolder} GB`;
+                    jsonaa["space"]["usage"]["string"] = spaceToLowest(size, true);
                     // Send the json to the requesting client
                     d = new Date(); endTime = d.getTime();
+                    diskUsage.check(__dirname, (err, data) => {
+                        if (err) throw err;
+                        jsonaa["space"]["total"] = {
+                            value: spaceToLowest(data["total"], false),
+                            mbvalue: (data["total"] / 1024 / 1024),
+                            gbvalue: (data["total"] / 1024 / 1024 / 1024),
+                            stringValue: spaceToLowest(data["total"], true).split(" ")[1].toLowerCase(),
+                            string: spaceToLowest(data["total"], true)
+                        };
+                    });
                     global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
                     return res.end(JSON.stringify(jsonaa));
                 });
@@ -312,6 +325,24 @@ function handleAPI(req, res) {
                 <a href="/api/get-info">/api/get-info</a>
             `);
     }
+}
+
+const spaceValues = ["B", "KB", "MB", "GB", "TB", "PB", "EB"]; // Futureproofing:tm:
+
+function spaceToLowest(spaceValue, includeStringValue) {
+    // Converts space values to lower values e.g MB, GB, TB etc depending on the size of the number
+    let i1 = 1;
+    // Loop through until value is at it's lowest
+    for (let i = 0; i < i1; i++) {
+        if (spaceValue >= 1024) {
+            spaceValue = spaceValue / 1024;
+        }
+
+        if (spaceValue >= 1024) i1++;
+    }
+
+    if (includeStringValue) return `${spaceValue.toFixed(2)} ${spaceValues[i1]}`;
+    else return spaceValue;
 }
 
 module.exports.MOD_FUNC = MODULE_FUNCTION;
