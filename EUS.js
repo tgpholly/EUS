@@ -280,7 +280,6 @@ function handleAPI(req, res) {
                     jsonaa["space"]["usage"]["mb"] = sizeOfFolder;
                     sizeOfFolder = (size / 1024 / 1024 / 1024);
                     jsonaa["space"]["usage"]["gb"] = sizeOfFolder;
-                    sizeOfFolder = (size / 1024 / 1024 / 1024).toFixed(2);
                     jsonaa["space"]["usage"]["string"] = spaceToLowest(size, true);
                     // Send the json to the requesting client
                     d = new Date(); endTime = d.getTime();
