@@ -4,7 +4,7 @@ const fs = require("fs"),
       busboy = require("connect-busboy"),
       randomstring = require("randomstring"),
       getSize = require("get-folder-size"),
-      diskUsage = require("diskusage")
+      diskUsage = require("diskusage"),
       emoji = require("../misc/emoji_list.json");
 
 // Defines the function of this module
