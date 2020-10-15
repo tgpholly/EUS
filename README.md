@@ -1,11 +1,13 @@
-⠀
-<img align="right" width="120" src="http://ethanus.ml/images/logo.png">
-=======
-
-[![CodeFactor](https://www.codefactor.io/repository/github/tgpethan/eus/badge/master)](https://www.codefactor.io/repository/github/tgpethan/eus/overview/master)
-[![Discord](https://img.shields.io/discord/477024246959308810?color=7289da&label=Discord&logo=discord&logoColor=ffffff)](https://discord.gg/BV8QGn6)
-
-EUS is my public screenshot server built using [Revolution](https://github.com/tgpethan/Revolution)
+<p align="center">
+  <img width="150" height="150" src="http://ethanus.ml/images/logo.png">
+</p>
+<p align="center">
+  EUS is my public screenshot server built using <a href="https://github.com/tgpethan/Revolution">Revolution</a><br>
+</p>
+<p align="center">
+  <a href="https://www.codefactor.io/repository/github/tgpethan/eus/overview/master"><img src="https://www.codefactor.io/repository/github/tgpethan/eus/badge/master" alt="CodeFactor" /></a>
+  <a src="https://discord.gg/BV8QGn6"><img src="https://img.shields.io/discord/477024246959308810?color=7289da&label=Discord&logo=discord&logoColor=ffffff"></a>
+</p>
 
 ## Setup
 
