@@ -18,7 +18,8 @@ let eusConfig = {},
     d = new Date(),
     startTime,
     endTime,
-    useUploadKey = true;
+    useUploadKey = true,
+    cacheJSON = "";
 
 // Only ran on startup so using sync functions is fine
 // Makes the folder for files of the module
@@ -45,7 +46,9 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/image-type.json")) {
     image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
 } else {
     // File already exists, load it.
+    const ijLoadStartTime = new Date().getTime();
     image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
+    console.log(`[EUS] Loaded image-type file, took ${new Date().getTime() - ijLoadStartTime}ms`);
 }
 
 // Makes the config file
@@ -61,6 +64,71 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/config.json")) {
     if (validateConfig(eusConfig)) console.log("[EUS] EUS config passed all checks");
 }
 
+// Cache for the file count and space usage, this takes a while to do so it's best to cache the result
+let cacheIsReady = false;
+function cacheFilesAndSpace() {
+    cacheIsReady = false;
+    let cachedFilesAndSpace = {
+        files: {}
+    },
+
+    // Cache file totals
+    total = 0;
+    // Add each accepted file type to the json
+    for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
+        cachedFilesAndSpace["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
+    }
+    // Read all files from the images directory
+    fs.readdir(__dirname + BASE_PATH + "/i", (err, files) => {
+        if (err) throw err;
+        // Loop through all files
+        for (var i = 0; i < files.length; i++) {
+            // Loop through all accepted file types to check for a match
+            for (var i1 = 0; i1 < eusConfig.acceptedTypes.length; i1++) {
+                const jsudfg = files[i].split(".");
+                if (`.${jsudfg[jsudfg.length-1]}` == eusConfig.acceptedTypes[i1]) {
+                    // There is a match! Add it to the json
+                    cachedFilesAndSpace["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
+                    // Also increase the total
+                    total++;
+                }
+            }
+        }
+        // Set the total in the json to the calculated total value
+        cachedFilesAndSpace["files"]["total"] = total;
+
+        // Cache usage
+        cachedFilesAndSpace["space"] = {
+            usage: {}
+        };
+        // Get the space used on the disk
+        getSize(__dirname + BASE_PATH + "/i", (err, size) => {
+            if (err) throw err;
+            // Calculate in different units the space taken up on disk
+            let sizeOfFolder = (size / 1024 / 1024);
+            cachedFilesAndSpace["space"]["usage"]["mb"] = sizeOfFolder;
+            sizeOfFolder = (size / 1024 / 1024 / 1024);
+            cachedFilesAndSpace["space"]["usage"]["gb"] = sizeOfFolder;
+            cachedFilesAndSpace["space"]["usage"]["string"] = spaceToLowest(size, true);
+            // Get total disk space
+            diskUsage.check(__dirname, (err, data) => {
+                if (err) throw err;
+                cachedFilesAndSpace["space"]["total"] = {
+                    value: spaceToLowest(data["total"], false),
+                    mbvalue: (data["total"] / 1024 / 1024),
+                    gbvalue: (data["total"] / 1024 / 1024 / 1024),
+                    stringValue: spaceToLowest(data["total"], true).split(" ")[1].toLowerCase(),
+                    string: spaceToLowest(data["total"], true)
+                };
+
+                cacheIsReady = true;
+                cacheJSON = JSON.stringify(cachedFilesAndSpace);
+            });
+        });
+    });
+}
+cacheFilesAndSpace();
+
 function validateConfig(json) {
     let performShutdownAfterValidation = false;
     // URL Tests
@@ -68,8 +136,7 @@ function validateConfig(json) {
         console.error("EUS baseURL property does not exist!");
         performShutdownAfterValidation = true;
     } else {
-        if (json["baseURL"] == "")
-        console.warn("EUS baseURL property is blank");
+        if (json["baseURL"] == "") console.warn("EUS baseURL property is blank");
         const bURL = `${json["baseURL"]}`.split("");
         if (bURL.length > 1) { 
             if (bURL[bURL.length-1] != "/") console.warn("EUS baseURL property doesn't have a / at the end, this can lead to unpredictable results!");
@@ -189,7 +256,7 @@ module.exports = {
                 thefe = `.${filename.split(".")[filename.split(".").length-1]}`;
             } else {
                 // File isn't accepted, send response back to client stating so.
-                res.end("This file type isn't accepted currently.");
+                res.status(403).end("This file type isn't accepted currently.");
                 return;
             }
             // Create a write stream for the file
@@ -206,6 +273,9 @@ module.exports = {
                     global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${endTime - startTime}ms`);
                     // Send URL of the uploaded image to the client           
                     res.end(eusConfig.baseURL+""+fileOutName);
+
+                    // Update cached files & space
+                    cacheFilesAndSpace();
                 });
             });
         });
@@ -231,72 +301,24 @@ function handleAPI(req, res) {
         case "/api/get-stats":
             filesaa = req.query["f"];
             spaceaa = req.query["s"];
-            jsonaa = {};
+            if (!cacheIsReady) return res.end("Cache is not ready");
+            jsonaa = JSON.parse(cacheJSON);
             // If total files is asked for
             if (filesaa == 1) {
-                let total = 0;
-                jsonaa["files"] = {};
-                // Add each accepted file type to the json
-                for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
-                    jsonaa["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
+                // If getting the space used on the server isn't required send the json
+                if (spaceaa != 1) {
+                    d = new Date(); endTime = d.getTime();
+                    global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+                    delete jsonaa["space"];
+                    return res.end(JSON.stringify(jsonaa));
                 }
-                // Read all files from the images directory
-                fs.readdir(__dirname + BASE_PATH + "/i", (err, files) => {
-                    if (err) throw err;
-                    // Loop through all files
-                    for (var i = 0; i < files.length; i++) {
-                        // Loop through all accepted file types to check for a match
-                        for (var i1 = 0; i1 < eusConfig.acceptedTypes.length; i1++) {
-                            const jsudfg = files[i].split(".");
-                            if (`.${jsudfg[jsudfg.length-1]}` == eusConfig.acceptedTypes[i1]) {
-                                // There is a match! Add it to the json
-                                jsonaa["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
-                                // Also increase the total
-                                total++;
-                            }
-                        }
-                    }
-                    // Set the total in the json to the calculated total value
-                    jsonaa["files"]["total"] = total;
-    
-                    // If getting the space used on the server isn't required send the json
-                    if (spaceaa != 1) {
-                        d = new Date(); endTime = d.getTime();
-                        global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
-                        return res.end(JSON.stringify(jsonaa));
-                    }
-                });
             }
             // Getting space is required
             if (spaceaa == 1) {
-                jsonaa["space"] = {
-                    usage: {}
-                };
-                // Get the space used on the disk
-                getSize(__dirname + BASE_PATH + "/i", (err, size) => {
-                    if (err) throw err;
-                    // Calculate in different units the space taken up on disk
-                    let sizeOfFolder = (size / 1024 / 1024);
-                    jsonaa["space"]["usage"]["mb"] = sizeOfFolder;
-                    sizeOfFolder = (size / 1024 / 1024 / 1024);
-                    jsonaa["space"]["usage"]["gb"] = sizeOfFolder;
-                    jsonaa["space"]["usage"]["string"] = spaceToLowest(size, true);
-                    // Get total disk space
-                    diskUsage.check(__dirname, (err, data) => {
-                        if (err) throw err;
-                        jsonaa["space"]["total"] = {
-                            value: spaceToLowest(data["total"], false),
-                            mbvalue: (data["total"] / 1024 / 1024),
-                            gbvalue: (data["total"] / 1024 / 1024 / 1024),
-                            stringValue: spaceToLowest(data["total"], true).split(" ")[1].toLowerCase(),
-                            string: spaceToLowest(data["total"], true)
-                        };
-                    });
-                    // Send the json to the requesting client
-                    d = new Date(); endTime = d.getTime();
-                    global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
-                    return res.end(JSON.stringify(jsonaa));
-                });
+                d = new Date(); endTime = d.getTime();
+                global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+                if (filesaa != 1) delete jsonaa["files"];
+                return res.end(JSON.stringify(jsonaa));
             }
 
             if (filesaa != 1 && spaceaa != 1) {
