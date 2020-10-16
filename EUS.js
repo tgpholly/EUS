@@ -66,8 +66,8 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/config.json")) {
 
 // Cache for the file count and space usage, this takes a while to do so it's best to cache the result
 let cacheIsReady = false;
-function cacheFilesAndSpace() {
-    cacheIsReady = false;
+async function cacheFilesAndSpace() {
+    const startCacheTime = new Date().getTime();
     let cachedFilesAndSpace = {
         files: {}
     },
@@ -79,7 +79,7 @@ function cacheFilesAndSpace() {
         cachedFilesAndSpace["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
     }
     // Read all files from the images directory
-    fs.readdir(__dirname + BASE_PATH + "/i", (err, files) => {
+    fs.readdir(__dirname + BASE_PATH + "/i", async (err, files) => {
         if (err) throw err;
         // Loop through all files
         for (var i = 0; i < files.length; i++) {
@@ -102,7 +102,7 @@ function cacheFilesAndSpace() {
             usage: {}
         };
         // Get the space used on the disk
-        getSize(__dirname + BASE_PATH + "/i", (err, size) => {
+        getSize(__dirname + BASE_PATH + "/i", async (err, size) => {
             if (err) throw err;
             // Calculate in different units the space taken up on disk
             let sizeOfFolder = (size / 1024 / 1024);
@@ -111,7 +111,7 @@ function cacheFilesAndSpace() {
             cachedFilesAndSpace["space"]["usage"]["gb"] = sizeOfFolder;
             cachedFilesAndSpace["space"]["usage"]["string"] = spaceToLowest(size, true);
             // Get total disk space
-            diskUsage.check(__dirname, (err, data) => {
+            diskUsage.check(__dirname, async (err, data) => {
                 if (err) throw err;
                 cachedFilesAndSpace["space"]["total"] = {
                     value: spaceToLowest(data["total"], false),
@@ -123,11 +123,11 @@ function cacheFilesAndSpace() {
 
                 cacheIsReady = true;
                 cacheJSON = JSON.stringify(cachedFilesAndSpace);
+                global.modules.consoleHelper.printInfo(emoji.folder, `Stats api cache took ${new Date().getTime() - startCacheTime}ms`);
             });
         });
     });
 }
-cacheFilesAndSpace();
 
 function validateConfig(json) {
     let performShutdownAfterValidation = false;
@@ -172,6 +172,7 @@ module.exports = {
     extras:function() {
         // Setup express to use busboy
         global.app.use(busboy());
+        cacheFilesAndSpace();
     },
     get:function(req, res) {
         /*
