@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="150" height="150" src="http://ethanus.ml/images/logo.png">
+  <img width="150" height="150" src="http://eusv.ml/images/logo.png">
 </p>
 <p align="center">
   EUS is my public screenshot server built using <a href="https://github.com/tgpethan/Revolution">Revolution</a><br>
