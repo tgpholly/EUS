@@ -22,7 +22,7 @@ Install the dependencies and then simply drop the EUS.js into a Revolution insta
 ## Config
 On first startup EUS will create a new config file in the **modules/EUS/** folder, some of these values may need to be changed depending on your use case.
 
-The value of **baseURL** will need to be changed to what you access the server from, for example if the server's ip is 192.168.1.100 and you are not planning to use EUS at a url you would change the value to **http://192.168.1.100/**. **baseURL** is used to construct the response url for file uploads, for example the value of **baseURL** on my instance of EUS is **https://ethanus.ml/**.
+The value of **baseURL** will need to be changed to what you access the server from, for example if the server's ip is 192.168.1.100 and you are not planning to use EUS at a url you would change the value to **http://192.168.1.100/**. **baseURL** is used to construct the response url for file uploads, for example the value of **baseURL** on my instance of EUS is **https://eusv.ml/**.
 
 If you want to expand the files that the server allows to be sent to it this can be done in the **allowedTypes** array. By default the array contains **png, jpg and gif**.
 
