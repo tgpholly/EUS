@@ -31,7 +31,7 @@ The value of **uploadKey** is used to restrict who can upload to your server, se
 ## API
 EUS has 3 apis, they are located at **[/api/get-stats](https://eusv.ml/api/get-stats)**, **[/api/get-info](https://eusv.ml/api/get-info)** and **[/api/get-server-status](https://eusv.ml/api/get-server-status)**
 
-[These are better documented on EUS Docs](https://docs.ethanus.ml)
+[These are better documented on EUS Docs](https://docs.eusv.ml)
 
 ## Websites that use EUS
-[EUS](https://ethanus.ml)
+[EUS](https://eusv.ml)
