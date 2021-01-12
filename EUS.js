@@ -64,6 +64,33 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/config.json")) {
     if (validateConfig(eusConfig)) console.log("[EUS] EUS config passed all checks");
 }
 
+// Static values
+let cachedTotalSpace;
+(async () => {
+    try {
+        console.log("[EUS] Starting api caching...");
+        const data = await diskUsage.check(__dirname + BASE_PATH);
+        cachedTotalSpace = {
+            value: spaceToLowest(data["total"], false),
+            mbvalue: (data["total"] / 1024 / 1024),
+            gbvalue: (data["total"] / 1024 / 1024 / 1024),
+            stringValue: spaceToLowest(data["total"], true).split(" ")[1].toLowerCase(),
+            string: spaceToLowest(data["total"], true)
+        };
+        cacheFilesAndSpace();
+    } catch (err) {
+        cachedTotalSpace = {
+            value: 0,
+            mbvalue: 0,
+            gbvalue: 0,
+            stringValue: "error",
+            string: "error"
+        };
+        cacheFilesAndSpace();
+        console.error(err);
+    }
+})();
+
 // Cache for the file count and space usage, this takes a while to do so it's best to cache the result
 let cacheIsReady = false;
 async function cacheFilesAndSpace() {
@@ -110,21 +137,14 @@ async function cacheFilesAndSpace() {
             sizeOfFolder = (size / 1024 / 1024 / 1024);
             cachedFilesAndSpace["space"]["usage"]["gb"] = sizeOfFolder;
             cachedFilesAndSpace["space"]["usage"]["string"] = spaceToLowest(size, true);
-            // Get total disk space
-            diskUsage.check(__dirname, async (err, data) => {
-                if (err) throw err;
-                cachedFilesAndSpace["space"]["total"] = {
-                    value: spaceToLowest(data["total"], false),
-                    mbvalue: (data["total"] / 1024 / 1024),
-                    gbvalue: (data["total"] / 1024 / 1024 / 1024),
-                    stringValue: spaceToLowest(data["total"], true).split(" ")[1].toLowerCase(),
-                    string: spaceToLowest(data["total"], true)
-                };
 
-                cacheIsReady = true;
-                cacheJSON = JSON.stringify(cachedFilesAndSpace);
-                global.modules.consoleHelper.printInfo(emoji.folder, `Stats api cache took ${new Date().getTime() - startCacheTime}ms`);
-            });
+            // Get total disk space
+            cachedFilesAndSpace["space"]["total"] = cachedTotalSpace;
+
+            cacheJSON = JSON.stringify(cachedFilesAndSpace);
+
+            cacheIsReady = true;
+            global.modules.consoleHelper.printInfo(emoji.folder, `Stats api cache took ${new Date().getTime() - startCacheTime}ms`);
         });
     });
 }
@@ -172,7 +192,6 @@ module.exports = {
     extras:function() {
         // Setup express to use busboy
         global.app.use(busboy());
-        cacheFilesAndSpace();
     },
     get:function(req, res) {
         /*
@@ -198,11 +217,12 @@ module.exports = {
         // Get the requested image
         let urs = ""+req.url; urs = urs.split("/")[1];
         // Get the file type of the image from image_json and make sure it exists
-        fs.access(__dirname + BASE_PATH + "/i/"+urs+image_json[urs], error => {
+        fs.access(__dirname + BASE_PATH + "/i/" + urs + image_json[urs], error => {
             if (error) {
                 // Doesn't exist, handle request normaly
-                if (req.url === "/") { urs = "/index.html" } else { urs = req.url }
-                fs.access(__dirname + BASE_PATH + "/files"+urs, error => {
+                if (req.url === "/") urs = "/index.html";
+                else urs = req.url;
+                fs.access(__dirname + BASE_PATH + "/files" + urs, error => {
                     if (error) {
                         // Doesn't exist, send a 404 to the client.
                         res.status(404).end("404!");
@@ -211,7 +231,7 @@ module.exports = {
                         global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${chalk.red("[404]")} ${req.url} ${endTime - startTime}ms`);
                     } else {
                         // File does exist, send it back to the client.
-                        res.sendFile(__dirname + BASE_PATH + "/files"+req.url);
+                        res.sendFile(__dirname + BASE_PATH + "/files" + req.url);
                         d = new Date();
                         endTime = d.getTime();
                         global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
