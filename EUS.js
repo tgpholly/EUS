@@ -184,6 +184,7 @@ module.exports = {
         res.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
         res.set("X-XSS-Protection", "1; mode=block");
         res.set("Feature-Policy", "fullscreen 'none'");
+        res.set("Permissions-Policy", "microphone=(), geolocation=(), magnetometer=(), camera=(), payment=(), usb=(), accelerometer=(), gyroscope=()");
         res.set("Referrer-Policy", "strict-origin-when-cross-origin");
         res.set("Content-Security-Policy", "block-all-mixed-content;frame-ancestors 'self'");
         res.set("X-Frame-Options", "SAMEORIGIN");
