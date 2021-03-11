@@ -64,6 +64,15 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/config.json")) {
     if (validateConfig(eusConfig)) console.log("[EUS] EUS config passed all checks");
 }
 
+function cleanURL(url = "") {
+    return url.split("%20").join(" ").split("%22").join("\"").split("%23").join("#").split("%24").join("$").split("%25").join("%").split("%26").join("&").split("%27").join("'").split("%2B").join("+").split("%2C").join(",").split("%2F").join("/")
+              .split("%3A").join(":").split("%3B").join(";").split("%3C").join("<").split("%3D").join("=").split("%3E").join(">").split("%3F").join("?")
+              .split("%40").join("@")
+	          .split("%5B").join("[").split("%5C").join("\\").split("%5D").join("]").split("%5E").join("^")
+       		  .split("%60").join("`")
+	   		  .split("%7B").join("{").split("%7C").join("|").split("%7D").join("}").split("%7E").join("~");
+}
+
 // Cache for the file count and space usage, this takes a while to do so it's best to cache the result
 let cacheIsReady = false;
 async function cacheFilesAndSpace() {
@@ -189,6 +198,8 @@ module.exports = {
         res.set("Content-Security-Policy", "block-all-mixed-content;frame-ancestors 'self'");
         res.set("X-Frame-Options", "SAMEORIGIN");
         res.set("X-Content-Type-Options", "nosniff");
+
+        req.url = cleanURL(req.url);
 
         // Check if returned value is true.
         if (req.url.includes("/api/")) return handleAPI(req, res);
