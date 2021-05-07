@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="150" height="150" src="http://eusv.ml/images/EUSLossless.webp">
+  <img width="150" height="150" src="https://eusv.ml/images/EUSLossless.webp">
 </p>
 <p align="center">
   EUS is my public screenshot server built using <a href="https://github.com/tgpethan/Revolution">Revolution</a><br>
