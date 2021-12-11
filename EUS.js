@@ -3,8 +3,9 @@ const fs = require("fs"),
 	  chalk = require("chalk"),
 	  busboy = require("connect-busboy"),
 	  randomstring = require("randomstring"),
-	  getSize = require("get-folder-size"),
-	  diskUsage = require("diskusage-ng"),
+	  diskUsage = require("diskusage"),
+	  streamMeter = require("stream-meter"),
+	  mysql = require("mysql"),
 	  emoji = require("../misc/emoji_list.json");
 
 // Defines the function of this module
@@ -13,13 +14,70 @@ const MODULE_FUNCTION = "handle_requests",
 	  // Base path for module folder creation and navigation
 	  BASE_PATH = "/EUS";
 
+console.log("[EUS] Loading EUS...");
+
+// This will never change
+const diskRunningOnSize = diskUsage.checkSync(__dirname).total;
+
 let eusConfig = {},
-	image_json = {},
-	d = new Date(),
-	startTime,
-	endTime,
 	useUploadKey = true,
-	cacheJSON = "";
+	cacheJSON = "",
+	startupFinished = false;
+
+class Database {
+	constructor(databaseAddress, databasePort = 3306, databaseUsername, databasePassword, databaseName, connectedCallback) {
+		this.connectionPool = mysql.createPool({
+			connectionLimit: 128,
+			host: databaseAddress,
+			port: databasePort,
+			user: databaseUsername,
+			password: databasePassword,
+			database: databaseName
+		});
+
+		this.dbActive = false;
+		if (connectedCallback == null) {
+			this.dbActive = true;
+		} else {
+			const connectionCheckInterval = setInterval(() => {
+				this.query("SELECT id FROM images LIMIT 1")
+					.then(data => {
+						if (startupFinished) global.modules.consoleHelper.printInfo(emoji.globe_europe, `Connected to database`);
+						else console.log("[EUS] Connected to database");
+						this.dbActive = true;
+						clearInterval(connectionCheckInterval);
+
+						connectedCallback();
+					})
+					.catch(err => {});
+			}, 167); // Roughly 6 times per sec
+		}
+	}
+
+	async query(sqlQuery) {
+		return new Promise((resolve, reject) => {
+			this.connectionPool.getConnection((err, connection) => {
+				if (err) {
+					reject(err);
+					try {
+						connection.release();
+					} catch (e) {}
+				} else {
+					connection.query(sqlQuery, (err, data) => {
+						if (err) {
+							reject(err);
+							connection.release();
+						} else {
+							if (sqlQuery.includes("LIMIT 1")) resolve(data[0]);
+							else resolve(data);
+							connection.release();
+						}
+					});
+				}
+			});
+		});
+	}
+}
 
 // Only ran on startup so using sync functions is fine
 // Makes the folder for files of the module
@@ -37,24 +95,11 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/i")) {
 	fs.mkdirSync(__dirname + BASE_PATH + "/i");
 	console.log(`[EUS] Made EUS images folder`);
 }
-// Makes the image-type file
-if (!fs.existsSync(__dirname + BASE_PATH + "/image-type.json")) {
-	// Doesn't exist, create it.
-	fs.writeFileSync(`${__dirname}${BASE_PATH}/image-type.json`, '{}');
-	console.log("[EUS] Made EUS image-type File!");
-	// File has been created, load it.
-	image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
-} else {
-	// File already exists, load it.
-	const ijLoadStartTime = new Date().getTime();
-	image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
-	console.log(`[EUS] Loaded image-type file, took ${new Date().getTime() - ijLoadStartTime}ms`);
-}
 
 // Makes the config file
 if (!fs.existsSync(__dirname + BASE_PATH + "/config.json")) {
 	// Config doesn't exist, make it.
-	fs.writeFileSync(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": ""\n}');
+	fs.writeFileSync(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": "",\n\t"database": {\n\t\t"databaseAddress": "127.0.0.1",\n\t\t"databasePort": 3306,\n\t\t"databaseUsername": "root",\n\t\t"databasePassword": "password",\n\t\t"databaseName": "EUS"\n\t}\n}');
 	console.log("[EUS] Made EUS config File!");
 	console.log("[EUS] Please edit the EUS Config file before restarting.");
 	// Config has been made, close framework.
@@ -64,75 +109,46 @@ if (!fs.existsSync(__dirname + BASE_PATH + "/config.json")) {
 	if (validateConfig(eusConfig)) console.log("[EUS] EUS config passed all checks");
 }
 
+const dbConnection = new Database(eusConfig["database"]["databaseAddress"], eusConfig["database"]["databasePort"], eusConfig["database"]["databaseUsername"], eusConfig["database"]["databasePassword"], eusConfig["database"]["databaseName"], async () => {
+	cacheJSON = JSON.stringify(await cacheFilesAndSpace());
+	cacheIsReady = true;
+});
+
 // Cache for the file count and space usage, this takes a while to do so it's best to cache the result
 let cacheIsReady = false;
-async function cacheFilesAndSpace() {
-	return new Promise((resolve, reject) => {
-		const startCacheTime = new Date().getTime();
+function cacheFilesAndSpace() {
+	return new Promise(async (resolve, reject) => {
+		const startCacheTime = Date.now();
+		cacheIsReady = false;
 		let cachedFilesAndSpace = {
-			files: {}
-		},
+			fileCounts: {},
+		};
 
-		// Cache file totals
-		total = 0;
-		// Add each accepted file type to the json
-		for (var i2 = 0; i2 < eusConfig.acceptedTypes.length; i2++) {
-			cachedFilesAndSpace["files"][`${eusConfig.acceptedTypes[i2]}`.replace(".", "")] = 0;
-		}
-		// Read all files from the images directory
-		fs.readdir(__dirname + BASE_PATH + "/i", async (err, files) => {
-			if (err) reject(err);
-			else {
-				// Loop through all files
-				for (var i = 0; i < files.length; i++) {
-					// Loop through all accepted file types to check for a match
-					for (var i1 = 0; i1 < eusConfig.acceptedTypes.length; i1++) {
-						const readFileName = files[i].split(".");
-						if (`.${readFileName[readFileName.length-1]}` == eusConfig.acceptedTypes[i1]) {
-							// There is a match! Add it to the json
-							cachedFilesAndSpace["files"][eusConfig.acceptedTypes[i1].replace(".", "")]++;
-							// Also increase the total
-							total++;
-						}
-					}
-				}
-				// Set the total in the json to the calculated total value
-				cachedFilesAndSpace["files"]["total"] = total;
-
-				// Cache usage
-				cachedFilesAndSpace["space"] = {
-					usage: {}
-				};
-				// Get the space used on the disk
-				getSize(__dirname + BASE_PATH + "/i", async (err, size) => {
-					if (err) reject(err);
-					else {
-						// Calculate in different units the space taken up on disk
-						let sizeOfFolder = (size / 2048);
-						cachedFilesAndSpace["space"]["usage"]["mb"] = sizeOfFolder;
-						sizeOfFolder = (size / 3072);
-						cachedFilesAndSpace["space"]["usage"]["gb"] = sizeOfFolder;
-						cachedFilesAndSpace["space"]["usage"]["string"] = await spaceToLowest(size, true);
-						// Get total disk space
-						diskUsage(__dirname, async (err, data) => {
-							if (err) reject(err);
-							else {
-								cachedFilesAndSpace["space"]["total"] = {
-									value: await spaceToLowest(data["total"], false),
-									mbvalue: (data["total"] / 2048),
-									gbvalue: (data["total"] / 3072),
-									stringValue: (await spaceToLowest(data["total"], true)).split(" ")[1].toLowerCase(),
-									string: await spaceToLowest(data["total"], true)
-								};
-
-								resolve(cachedFilesAndSpace);
-								global.modules.consoleHelper.printInfo(emoji.folder, `Stats api cache took ${new Date().getTime() - startCacheTime}ms`);
-							}
-						});
-					}
-				});
-			}
+		const dbData = await dbConnection.query(`SELECT imageType, COUNT(imageType) AS "count" FROM images GROUP BY imageType`);
+		let totalFiles = 0;
+		dbData.forEach(fileType => {
+			cachedFilesAndSpace["fileCounts"][fileType.imageType] = fileType.count;
+			totalFiles += fileType.count;
 		});
+		cachedFilesAndSpace["filesTotal"] = totalFiles;
+
+		cachedFilesAndSpace["space"] = {usage: {}, total:{}};
+
+		const dbSize = (await dbConnection.query(`SELECT SUM(imageSize) FROM images LIMIT 1`))["SUM(imageSize)"];
+		const totalSizeBytes = dbSize == null ? 0 : dbSize;
+		const mbSize = totalSizeBytes / 1024 / 1024;
+		cachedFilesAndSpace["space"]["usage"]["mb"] = parseFloat(mbSize.toFixed(4));
+		cachedFilesAndSpace["space"]["usage"]["gb"] = parseFloat((mbSize / 1024).toFixed(4));
+		cachedFilesAndSpace["space"]["usage"]["string"] = await spaceToLowest(totalSizeBytes, true);
+
+		//totalDiskSize
+		const totalMBSize = diskRunningOnSize / 1024 / 1024;
+		cachedFilesAndSpace["space"]["total"]["mb"] = parseFloat(totalMBSize.toFixed(4));
+		cachedFilesAndSpace["space"]["total"]["gb"] = parseFloat((totalMBSize / 1024).toFixed(4));
+		cachedFilesAndSpace["space"]["total"]["string"] = await spaceToLowest(diskRunningOnSize, true);
+
+		resolve(cachedFilesAndSpace);
+		global.modules.consoleHelper.printInfo(emoji.folder, `Stats api cache took ${Date.now() - startCacheTime}ms`);
 	});
 }
 
@@ -154,7 +170,7 @@ function validateConfig(json) {
 	}
 	// acceptedTypes checks
 	if (json["acceptedTypes"] == null) {
-		console.error("EUS acceptedTypes array does not exist!");
+		console.error("EUS acceptedTypes list does not exist!");
 		performShutdownAfterValidation = true;
 	} else {
 		if (json["acceptedTypes"].length < 1) console.warn("EUS acceptedTypes array has no extentions in it, users will not be able to upload images!");
@@ -166,10 +182,41 @@ function validateConfig(json) {
 	} else {
 		if (json["uploadKey"] == "") useUploadKey = false;
 	}
+	// database checks
+	if (json["database"] == null) {
+		console.error("EUS database properties do not exist!");
+		performShutdownAfterValidation = true;
+	} else {
+		// databaseAddress
+		if (json["database"]["databaseAddress"] == null) {
+			console.error("EUS database.databaseAddress property does not exist!");
+			performShutdownAfterValidation = true;
+		}
+		// databasePort
+		if (json["database"]["databasePort"] == null) {
+			console.error("EUS database.databasePort property does not exist!");
+			performShutdownAfterValidation = true;
+		}
+		// databaseUsername
+		if (json["database"]["databaseUsername"] == null) {
+			console.error("EUS database.databaseUsername property does not exist!");
+			performShutdownAfterValidation = true;
+		}
+		// databasePassword
+		if (json["database"]["databasePassword"] == null) {
+			console.error("EUS database.databasePassword property does not exist!");
+			performShutdownAfterValidation = true;
+		}
+		// databaseName
+		if (json["database"]["databaseName"] == null) {
+			console.error("EUS database.databaseName property does not exist!");
+			performShutdownAfterValidation = true;
+		}
+	}
 
 	// Check if server needs to be shutdown
 	if (performShutdownAfterValidation) {
-		console.error("EUS config properties are missing, refer to docs for more details (https://docs.ethanus.ml)");
+		console.error("EUS config properties are missing, refer to docs for more details (https://wiki.eusv.ml)");
 		process.exit(1);
 	}
 	else return true;
@@ -184,12 +231,32 @@ function cleanURL(url = "") {
 	   		  .split("%7B").join("{").split("%7C").join("|").split("%7D").join("}").split("%7E").join("~");
 }
 
+function regularFile(req, res, urs = "", startTime = 0) {
+	if (req.url === "/") { urs = "/index.html" } else { urs = req.url }
+	fs.access(`${__dirname}${BASE_PATH}/files${urs}`, (error) => {
+		if (error) {
+			// Doesn't exist, send a 404 to the client.
+			error404Page(res);
+			global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${chalk.red("[404]")} ${req.url} ${Date.now() - startTime}ms`);
+		} else {
+			// File does exist, send it back to the client.
+			res.sendFile(__dirname + BASE_PATH + "/files"+req.url);
+			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${Date.now() - startTime}ms`);
+		}
+	});
+}
+
+function error404Page(res) {
+	res.status(404).send("404!<hr>EUS");
+}
+
 module.exports = {
 	extras:async function() {
 		// Setup express to use busboy
 		global.app.use(busboy());
-		cacheJSON = JSON.stringify(await cacheFilesAndSpace());
-		cacheIsReady = true;
+		startupFinished = true;
+		//cacheJSON = JSON.stringify(await cacheFilesAndSpace());
+		//cacheIsReady = true;
 	},
 	get:async function(req, res) {
 		/*
@@ -213,39 +280,31 @@ module.exports = {
 		if (req.url.includes("/api/")) return handleAPI(req, res);
 
 		// Register the time at the start of the request
-		d = new Date();
-		startTime = d.getTime();
+		const startTime = Date.now();
 
 		// Get the requested image
 		let urs = `${req.url}`; urs = urs.split("/")[1];
-		// Get the file type of the image from image_json and make sure it exists
-		fs.access(`${__dirname}${BASE_PATH}/i/${urs}${image_json[urs]}`, (error) => {
-			if (error) {
-				// Doesn't exist, handle request normaly
-				if (req.url === "/") { urs = "/index.html" } else { urs = req.url }
-				fs.access(`${__dirname}${BASE_PATH}/files${urs}`, (error) => {
-					if (error) {
-						// Doesn't exist, send a 404 to the client.
-						res.status(404).send("404!<hr>EUS");
-						d = new Date();
-						endTime = d.getTime();
-						global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${chalk.red("[404]")} ${req.url} ${endTime - startTime}ms`);
-					} else {
-						// File does exist, send it back to the client.
-						res.sendFile(__dirname + BASE_PATH + "/files"+req.url);
-						d = new Date();
-						endTime = d.getTime();
-						global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
-					}
-				});
-			} else {
-				// Image does exist, send it back.
-				res.sendFile(`${__dirname}${BASE_PATH}/i/${urs}${image_json[urs]}`);
-				d = new Date();
-				endTime = d.getTime();
-				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+		// Check if we even need to query the DB
+		const dbAble = (!/[^0-9A-Za-z]/.test(urs)) && urs != "" && urs != "index" && (req.url.split("/").length == 2);
+
+		if (dbAble) {
+			if (dbConnection.dbActive) {
+				// Try to get what we think is an image's details from the DB
+				const dbEntry = await dbConnection.query(`SELECT imageType FROM images WHERE imageId = "${urs}" LIMIT 1`);
+
+				// There's an entry in the DB for this, send the file back.
+				if (dbEntry != null) {
+					res.sendFile(`${__dirname}${BASE_PATH}/i/${urs}.${dbEntry.imageType}`);
+					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (ImageReq) ${req.url} ${Date.now() - startTime}ms`);
+				}
+				// There's no entry, so treat this as a regular file.
+				else regularFile(req, res, urs, startTime);
 			}
-		});
+			else res.status(400).end("EUS is restarting, please try again in a few secs.");
+		}
+		// We can still serve files if they are not dbable
+		// since we don't need to check the db
+		else regularFile(req, res, urs, startTime);
 	},
 	post:async function(req, res) {
 		/*
@@ -261,61 +320,55 @@ module.exports = {
 
 		if (useUploadKey && eusConfig["uploadKey"] != req.header("key")) return res.end("Incorrect key provided for upload");
 
-		d = new Date(); startTime = d.getTime();
+		const startTime = Date.now();
 		var fstream;
 		var thefe;
 		// Pipe the request to busboy
 		req.pipe(req.busboy);
 		req.busboy.on('file', function (fieldname, file, filename) {
-			// Get the image-type json
-			image_json = require(`${__dirname}${BASE_PATH}/image-type.json`);
 			// Make a new file name
 			fileOutName = randomstring.generate(14);
 			global.modules.consoleHelper.printInfo(emoji.fast_up, `${req.method}: Upload of ${fileOutName} started.`);
 			// Check the file is within the accepted file types  
 			if (eusConfig.acceptedTypes.includes(`.${filename.split(".")[filename.split(".").length-1]}`)) {
 				// File is accepted, set the extention of the file in thefe for later use.
-				thefe = `.${filename.split(".")[filename.split(".").length-1]}`;
+				thefe = `${filename.split(".")[filename.split(".").length-1]}`;
 			} else {
 				// File isn't accepted, send response back to client stating so.
 				res.status(403).end("This file type isn't accepted currently.");
 				return;
 			}
 			// Create a write stream for the file
-			fstream = fs.createWriteStream(__dirname + BASE_PATH + "/i/" + fileOutName + thefe);
-			file.pipe(fstream);
-			fstream.on('close', function () {
-				// Get the time at the end of the upload
-				d = new Date(); endTime = d.getTime();
-				// Add image file type to the image_json array
-				image_json[fileOutName] = `.${filename.split(".")[filename.split(".").length-1]}`;
-				// Save image_json array to the file
-				fs.writeFile(`${__dirname}${BASE_PATH}/image-type.json`, JSON.stringify(image_json), async (err) => {
-					if (err) reject(err);
-					else {
-						global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${endTime - startTime}ms`);
-						// Send URL of the uploaded image to the client           
-						res.end(eusConfig.baseURL+""+fileOutName);
+			fstream = fs.createWriteStream(__dirname + BASE_PATH + "/i/" + fileOutName + "." + thefe);
+			// Create meter for tracking the size of the file
+			const meter = streamMeter();
+			file.pipe(meter).pipe(fstream);
+			fstream.on('close', async () => {
+				// Add this image to the database
+				await dbConnection.query(`INSERT INTO images (id, imageId, imageType, imageSize) VALUES (NULL, "${fileOutName}", "${thefe}", ${meter.bytes})`);
+				
+				// Send URL of the uploaded image to the client           
+				res.end(eusConfig.baseURL + fileOutName);
+				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${Date.now() - startTime}ms`);
 
-						// Update cached files & space
-						cacheJSON = JSON.stringify(await cacheFilesAndSpace());
-					}
-				});
+				// Update cached files & space
+				cacheJSON = JSON.stringify(await cacheFilesAndSpace());
+				cacheIsReady = true;
 			});
 		});
 	}
 }
 
 async function handleAPI(req, res) {
-	d = new Date(); startTime = d.getTime();
-	let jsonaa = {}, filesaa = 0, spaceaa = 0;
+	const startTime = Date.now();
+	let jsonaa = {}, filesaa = 0, spaceaa = 0, endTime = 0;
 	switch (req.url.split("?")[0]) {
-		// Status check to see the onlint status of EUS
+		// Status check to see the online status of EUS
 		// Used by ESL to make sure EUS is online
 		case "/api/get-server-status":
-			d = new Date(); endTime = d.getTime();
+			endTime = Date.now();
 			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
-			return res.end('{ "status":1, "version":"'+global.internals.version+'" }');
+			return res.end('{"status":1,"version":"'+global.internals.version+'"}');
 		
 		/*  Stats api endpoint
 			Query inputs
@@ -331,7 +384,7 @@ async function handleAPI(req, res) {
 			if (filesaa == 1) {
 				// If getting the space used on the server isn't required send the json
 				if (spaceaa != 1) {
-					d = new Date(); endTime = d.getTime();
+					endTime = Date.now();
 					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
 					delete jsonaa["space"];
 					return res.end(JSON.stringify(jsonaa));
@@ -339,14 +392,14 @@ async function handleAPI(req, res) {
 			}
 			// Getting space is required
 			if (spaceaa == 1) {
-				d = new Date(); endTime = d.getTime();
+				endTime = Date.now();
 				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
 				if (filesaa != 1) delete jsonaa["files"];
 				return res.end(JSON.stringify(jsonaa));
 			}
 
 			if (filesaa != 1 && spaceaa != 1) {
-				d = new Date(); endTime = d.getTime();
+				endTime = Date.now();
 				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
 				return res.end("Please add f and or s to your queries to get the files and space");
 			}
@@ -354,7 +407,7 @@ async function handleAPI(req, res) {
 
 		// Information API
 		case "/api/get-info":
-			d = new Date(); endTime = d.getTime();
+			endTime = Date.now();
 			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
 			return res.end(JSON.stringify({
 				version: global.internals.version,
@@ -362,7 +415,7 @@ async function handleAPI(req, res) {
 			}));
 
 		default:
-			d = new Date(); endTime = d.getTime();
+			endTime = Date.now();
 			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
 			return res.send(`
 				<h2>All currently avaliable api endpoints</h2>
@@ -373,18 +426,15 @@ async function handleAPI(req, res) {
 	}
 }
 
-const spaceValues = ["B", "KB", "MB", "GB", "TB", "PB", "EB"]; // Futureproofing:tm:
+const spaceValues = ["B", "KB", "MB", "GB", "TB", "PB", "EB"]; // Futureproofing™
 
 async function spaceToLowest(spaceValue, includeStringValue) {
 	return new Promise((resolve, reject) => {
 		// Converts space values to lower values e.g MB, GB, TB etc depending on the size of the number
 		let i1 = 1;
 		// Loop through until value is at it's lowest
-		for (let i = 0; i < i1; i++) {
-			if (spaceValue >= 1024) {
-				spaceValue = spaceValue / 1024;
-			}
-
+		while (spaceValue >= 1024) {
+			spaceValue = spaceValue / 1024;
 			if (spaceValue >= 1024) i1++;
 		}
 
@@ -394,3 +444,5 @@ async function spaceToLowest(spaceValue, includeStringValue) {
 }
 
 module.exports.MOD_FUNC = MODULE_FUNCTION;
+
+console.log("[EUS] Finished loading");
