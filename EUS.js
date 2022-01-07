@@ -325,14 +325,15 @@ module.exports = {
 		var thefe;
 		// Pipe the request to busboy
 		req.pipe(req.busboy);
-		req.busboy.on('file', function (fieldname, file, filename) {
+		req.busboy.on('file', function (fieldname, file, info) {
 			// Make a new file name
 			fileOutName = randomstring.generate(14);
 			global.modules.consoleHelper.printInfo(emoji.fast_up, `${req.method}: Upload of ${fileOutName} started.`);
-			// Check the file is within the accepted file types  
-			if (eusConfig.acceptedTypes.includes(`.${filename.split(".")[filename.split(".").length-1]}`)) {
+			// Check the file is within the accepted file types
+			const fileType = info.filename.split(".").slice(-1);
+			if (eusConfig.acceptedTypes.includes(`.${fileType}`)) {
 				// File is accepted, set the extention of the file in thefe for later use.
-				thefe = `${filename.split(".")[filename.split(".").length-1]}`;
+				thefe = fileType;
 			} else {
 				// File isn't accepted, send response back to client stating so.
 				res.status(403).end("This file type isn't accepted currently.");
