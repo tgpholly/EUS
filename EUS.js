@@ -1,12 +1,4 @@
-const fs = require("fs"),
-	  config = require("../config/config.json"),
-	  chalk = require("chalk"),
-	  busboy = require("connect-busboy"),
-	  randomstring = require("randomstring"),
-	  diskUsage = require("diskusage"),
-	  streamMeter = require("stream-meter"),
-	  mysql = require("mysql"),
-	  emoji = require("../misc/emoji_list.json");
+const fs = require("fs"), config = require("../config/config.json"), emoji = require("../misc/emoji_list.json");
 
 // Defines the function of this module
 const MODULE_FUNCTION = "handle_requests",
@@ -14,19 +6,17 @@ const MODULE_FUNCTION = "handle_requests",
 	  // Base path for module folder creation and navigation
 	  BASE_PATH = "/EUS";
 
-console.log("[EUS] Loading EUS...");
-
-// This will never change
-const diskRunningOnSize = diskUsage.checkSync(__dirname).total;
+let node_modules = {};
 
 let eusConfig = {},
 	useUploadKey = true,
 	cacheJSON = "",
-	startupFinished = false;
+	startupFinished = false,
+	diskRunningOnSize = 0;
 
 class Database {
 	constructor(databaseAddress, databasePort = 3306, databaseUsername, databasePassword, databaseName, connectedCallback) {
-		this.connectionPool = mysql.createPool({
+		this.connectionPool = node_modules.mysql.createPool({
 			connectionLimit: 128,
 			host: databaseAddress,
 			port: databasePort,
@@ -79,40 +69,58 @@ class Database {
 	}
 }
 
-// Only ran on startup so using sync functions is fine
-// Makes the folder for files of the module
-if (!fs.existsSync(__dirname + BASE_PATH)) {
-	fs.mkdirSync(__dirname + BASE_PATH);
-	console.log(`[EUS] Made EUS module folder`);
-}
-// Makes the folder for frontend files
-if (!fs.existsSync(__dirname + BASE_PATH + "/files")) {
-	fs.mkdirSync(__dirname + BASE_PATH + "/files");
-	console.log(`[EUS] Made EUS web files folder`);
-}
-// Makes the folder for images
-if (!fs.existsSync(__dirname + BASE_PATH + "/i")) {
-	fs.mkdirSync(__dirname + BASE_PATH + "/i");
-	console.log(`[EUS] Made EUS images folder`);
-}
+function init() {
+	// Require node modules
+	node_modules["chalk"] = require("chalk");
+	node_modules["busboy"] = require("connect-busboy");
+	node_modules["randomstring"] = require("randomstring");
+	node_modules["diskUsage"] = require("diskusage");
+	node_modules["streamMeter"] = require("stream-meter");
+	node_modules["mysql"] = require("mysql");
 
-// Makes the config file
-if (!fs.existsSync(__dirname + BASE_PATH + "/config.json")) {
-	// Config doesn't exist, make it.
-	fs.writeFileSync(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": "",\n\t"database": {\n\t\t"databaseAddress": "127.0.0.1",\n\t\t"databasePort": 3306,\n\t\t"databaseUsername": "root",\n\t\t"databasePassword": "password",\n\t\t"databaseName": "EUS"\n\t}\n}');
-	console.log("[EUS] Made EUS config File!");
-	console.log("[EUS] Please edit the EUS Config file before restarting.");
-	// Config has been made, close framework.
-	process.exit(0);
-} else {
-	eusConfig = require(`${__dirname}${BASE_PATH}/config.json`);
-	if (validateConfig(eusConfig)) console.log("[EUS] EUS config passed all checks");
-}
+	// Only ran on startup so using sync functions is fine
 
-const dbConnection = new Database(eusConfig["database"]["databaseAddress"], eusConfig["database"]["databasePort"], eusConfig["database"]["databaseUsername"], eusConfig["database"]["databasePassword"], eusConfig["database"]["databaseName"], async () => {
-	cacheJSON = JSON.stringify(await cacheFilesAndSpace());
-	cacheIsReady = true;
-});
+	// Fetch total size of disk on startup, this will never change during runtime
+	// if it does something seriously wrong has happened.
+	diskRunningOnSize = node_modules.diskUsage.checkSync(__dirname).total;
+
+	// Makes the folder for files of the module
+	if (!fs.existsSync(__dirname + BASE_PATH)) {
+		fs.mkdirSync(__dirname + BASE_PATH);
+		console.log(`[EUS] Made EUS module folder`);
+	}
+	// Makes the folder for frontend files
+	if (!fs.existsSync(__dirname + BASE_PATH + "/files")) {
+		fs.mkdirSync(__dirname + BASE_PATH + "/files");
+		console.log(`[EUS] Made EUS web files folder`);
+	}
+	// Makes the folder for images
+	if (!fs.existsSync(__dirname + BASE_PATH + "/i")) {
+		fs.mkdirSync(__dirname + BASE_PATH + "/i");
+		console.log(`[EUS] Made EUS images folder`);
+	}
+
+	// Makes the config file
+	if (!fs.existsSync(__dirname + BASE_PATH + "/config.json")) {
+		// Config doesn't exist, make it.
+		fs.writeFileSync(`${__dirname}${BASE_PATH}/config.json`, '{\n\t"baseURL":"http://example.com/",\n\t"acceptedTypes": [\n\t\t".png",\n\t\t".jpg",\n\t\t".jpeg",\n\t\t".gif"\n\t],\n\t"uploadKey": "",\n\t"database": {\n\t\t"databaseAddress": "127.0.0.1",\n\t\t"databasePort": 3306,\n\t\t"databaseUsername": "root",\n\t\t"databasePassword": "password",\n\t\t"databaseName": "EUS"\n\t}\n}');
+		console.log("[EUS] Made EUS config File!");
+		console.log("[EUS] Please edit the EUS Config file before restarting.");
+		// Config has been made, close framework.
+		process.exit(0);
+	} else {
+		eusConfig = require(`${__dirname}${BASE_PATH}/config.json`);
+		if (validateConfig(eusConfig)) console.log("[EUS] EUS config passed all checks");
+	}
+
+	// This is using a callback but that's fine, the server will just react properly to the db not being ready yet.
+	const dbConnection = new Database(eusConfig["database"]["databaseAddress"], eusConfig["database"]["databasePort"], eusConfig["database"]["databaseUsername"], eusConfig["database"]["databasePassword"], eusConfig["database"]["databaseName"], async () => {
+		cacheJSON = JSON.stringify(await cacheFilesAndSpace());
+		cacheIsReady = true;
+	});
+
+	console.log("[EUS] Finished loading.");
+}
 
 // Cache for the file count and space usage, this takes a while to do so it's best to cache the result
 let cacheIsReady = false;
@@ -237,11 +245,11 @@ function regularFile(req, res, urs = "", startTime = 0) {
 		if (error) {
 			// Doesn't exist, send a 404 to the client.
 			error404Page(res);
-			global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${chalk.red("[404]")} ${req.url} ${Date.now() - startTime}ms`);
+			global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${node_modules.chalk.red("[404]")} ${req.url} ${Date.now() - startTime}ms`);
 		} else {
 			// File does exist, send it back to the client.
 			res.sendFile(__dirname + BASE_PATH + "/files"+req.url);
-			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${Date.now() - startTime}ms`);
+			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} ${req.url} ${Date.now() - startTime}ms`);
 		}
 	});
 }
@@ -251,9 +259,10 @@ function error404Page(res) {
 }
 
 module.exports = {
+	init: init,
 	extras:async function() {
 		// Setup express to use busboy
-		global.app.use(busboy());
+		global.app.use(node_modules.busboy());
 		startupFinished = true;
 		//cacheJSON = JSON.stringify(await cacheFilesAndSpace());
 		//cacheIsReady = true;
@@ -295,7 +304,7 @@ module.exports = {
 				// There's an entry in the DB for this, send the file back.
 				if (dbEntry != null) {
 					res.sendFile(`${__dirname}${BASE_PATH}/i/${urs}.${dbEntry.imageType}`);
-					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (ImageReq) ${req.url} ${Date.now() - startTime}ms`);
+					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} (ImageReq) ${req.url} ${Date.now() - startTime}ms`);
 				}
 				// There's no entry, so treat this as a regular file.
 				else regularFile(req, res, urs, startTime);
@@ -327,7 +336,7 @@ module.exports = {
 		req.pipe(req.busboy);
 		req.busboy.on('file', function (fieldname, file, info) {
 			// Make a new file name
-			fileOutName = randomstring.generate(14);
+			fileOutName = node_modules.randomstring.generate(14);
 			global.modules.consoleHelper.printInfo(emoji.fast_up, `${req.method}: Upload of ${fileOutName} started.`);
 			// Check the file is within the accepted file types
 			const fileType = info.filename.split(".").slice(-1);
@@ -342,7 +351,7 @@ module.exports = {
 			// Create a write stream for the file
 			fstream = fs.createWriteStream(__dirname + BASE_PATH + "/i/" + fileOutName + "." + thefe);
 			// Create meter for tracking the size of the file
-			const meter = streamMeter();
+			const meter = node_modules.streamMeter();
 			file.pipe(meter).pipe(fstream);
 			fstream.on('close', async () => {
 				// Add this image to the database
@@ -367,7 +376,7 @@ async function handleAPI(req, res) {
 		// Status check to see the online status of EUS
 		// Used by ESL to make sure EUS is online
 		case "/api/get-server-status":
-			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
+			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 			return res.end('{"status":1,"version":"'+global.internals.version+'"}');
 		
 		/*  Stats api endpoint
@@ -384,34 +393,34 @@ async function handleAPI(req, res) {
 			if (filesaa == 1) {
 				// If getting the space used on the server isn't required send the json
 				if (spaceaa != 1) {
-					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
+					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 					delete jsonaa["space"];
 					return res.end(JSON.stringify(jsonaa));
 				}
 			}
 			// Getting space is required
 			if (spaceaa == 1) {
-				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
+				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 				if (filesaa != 1) delete jsonaa["files"];
 				return res.end(JSON.stringify(jsonaa));
 			}
 
 			if (filesaa != 1 && spaceaa != 1) {
-				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
+				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 				return res.end("Please add f and or s to your queries to get the files and space");
 			}
 		break;
 
 		// Information API
 		case "/api/get-info":
-			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
+			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 			return res.end(JSON.stringify({
 				version: global.internals.version,
 				instance: config["server"]["instance_type"]
 			}));
 
 		default:
-			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
+			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 			return res.send(`
 				<h2>All currently avaliable api endpoints</h2>
 				<a href="/api/get-server-status">/api/get-server-status</a>
@@ -440,4 +449,7 @@ async function spaceToLowest(spaceValue, includeStringValue) {
 
 module.exports.MOD_FUNC = MODULE_FUNCTION;
 
-console.log("[EUS] Finished loading");
+module.exports.REQUIRED_NODE_MODULES = [
+	"chalk", "connect-busboy", "randomstring",
+	"diskusage", "stream-meter", "mysql"
+];
