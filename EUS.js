@@ -361,13 +361,12 @@ module.exports = {
 
 async function handleAPI(req, res) {
 	const startTime = Date.now();
-	let jsonaa = {}, filesaa = 0, spaceaa = 0, endTime = 0;
+	let jsonaa = {}, filesaa = 0, spaceaa = 0;
 	switch (req.url.split("?")[0]) {
 		// Status check to see the online status of EUS
 		// Used by ESL to make sure EUS is online
 		case "/api/get-server-status":
-			endTime = Date.now();
-			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 			return res.end('{"status":1,"version":"'+global.internals.version+'"}');
 		
 		/*  Stats api endpoint
@@ -384,39 +383,34 @@ async function handleAPI(req, res) {
 			if (filesaa == 1) {
 				// If getting the space used on the server isn't required send the json
 				if (spaceaa != 1) {
-					endTime = Date.now();
-					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 					delete jsonaa["space"];
 					return res.end(JSON.stringify(jsonaa));
 				}
 			}
 			// Getting space is required
 			if (spaceaa == 1) {
-				endTime = Date.now();
-				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 				if (filesaa != 1) delete jsonaa["files"];
 				return res.end(JSON.stringify(jsonaa));
 			}
 
 			if (filesaa != 1 && spaceaa != 1) {
-				endTime = Date.now();
-				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 				return res.end("Please add f and or s to your queries to get the files and space");
 			}
 		break;
 
 		// Information API
 		case "/api/get-info":
-			endTime = Date.now();
-			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 			return res.end(JSON.stringify({
 				version: global.internals.version,
 				instance: config["server"]["instance_type"]
 			}));
 
 		default:
-			endTime = Date.now();
-			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} ${req.url} ${endTime - startTime}ms`);
+			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${chalk.green("[200]")} (APIReq) ${req.url} ${Date.now() - startTime}ms`);
 			return res.send(`
 				<h2>All currently avaliable api endpoints</h2>
 				<a href="/api/get-server-status">/api/get-server-status</a>
