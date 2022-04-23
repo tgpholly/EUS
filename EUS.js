@@ -69,6 +69,7 @@ class Database {
 	}
 }
 
+let dbConnection;
 function init() {
 	// Require node modules
 	node_modules["chalk"] = require("chalk");
@@ -114,7 +115,7 @@ function init() {
 	}
 
 	// This is using a callback but that's fine, the server will just react properly to the db not being ready yet.
-	const dbConnection = new Database(eusConfig["database"]["databaseAddress"], eusConfig["database"]["databasePort"], eusConfig["database"]["databaseUsername"], eusConfig["database"]["databasePassword"], eusConfig["database"]["databaseName"], async () => {
+	dbConnection = new Database(eusConfig["database"]["databaseAddress"], eusConfig["database"]["databasePort"], eusConfig["database"]["databaseUsername"], eusConfig["database"]["databasePassword"], eusConfig["database"]["databaseName"], async () => {
 		cacheJSON = JSON.stringify(await cacheFilesAndSpace());
 		cacheIsReady = true;
 	});
