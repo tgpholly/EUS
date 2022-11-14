@@ -1,4 +1,4 @@
-const fs = require("fs"), config = require("../config/config.json"), emoji = require("../misc/emoji_list.json");
+const config = require("../config/config.json"), crypto = require("crypto"), emoji = require("../misc/emoji_list.json"), fs = require("fs");
 
 // Defines the function of this module
 const MODULE_FUNCTION = "handle_requests",
@@ -12,11 +12,12 @@ let eusConfig = {},
 	useUploadKey = true,
 	cacheJSON = "",
 	startupFinished = false,
-	diskRunningOnSize = 0;
+	diskRunningOnSize = 0,
+	timeSinceLastCache = Date.now();
 
 class Database {
 	constructor(databaseAddress, databasePort = 3306, databaseUsername, databasePassword, databaseName, connectedCallback) {
-		this.connectionPool = node_modules.mysql.createPool({
+		this.connectionPool = node_modules["mysql2"].createPool({
 			connectionLimit: 128,
 			host: databaseAddress,
 			port: databasePort,
@@ -25,6 +26,7 @@ class Database {
 			database: databaseName
 		});
 
+		const classCreationTime = Date.now();
 		this.dbActive = false;
 		if (connectedCallback == null) {
 			this.dbActive = true;
@@ -32,37 +34,60 @@ class Database {
 			const connectionCheckInterval = setInterval(() => {
 				this.query("SELECT id FROM images LIMIT 1")
 					.then(data => {
-						if (startupFinished) global.modules.consoleHelper.printInfo(emoji.globe_europe, `Connected to database`);
-						else console.log("[EUS] Connected to database");
+						global.modules.consoleHelper.printInfo(emoji.globe_europe, `Connected to database. Took ${Date.now() - classCreationTime}ms`);
 						this.dbActive = true;
 						clearInterval(connectionCheckInterval);
 
 						connectedCallback();
 					})
-					.catch(err => {});
+					.catch(err => {
+						console.error(err);
+					});
 			}, 167); // Roughly 6 times per sec
 		}
 	}
 
-	async query(sqlQuery) {
+	dataReceived(resolveCallback, data, limited = false) {
+		if (limited) resolveCallback(data[0]);
+		else resolveCallback(data);
+	}
+
+	query(query = "", data) {
+		const limited = query.includes("LIMIT 1");
+
 		return new Promise((resolve, reject) => {
 			this.connectionPool.getConnection((err, connection) => {
 				if (err) {
 					reject(err);
-					try {
-						connection.release();
-					} catch (e) {}
+					try { connection.release();}
+					catch (e) {
+						console.error("Failed to release mysql connection", err);
+					}
 				} else {
-					connection.query(sqlQuery, (err, data) => {
-						if (err) {
-							reject(err);
-							connection.release();
-						} else {
-							if (sqlQuery.includes("LIMIT 1")) resolve(data[0]);
-							else resolve(data);
-							connection.release();
-						}
-					});
+					// Use old query
+					if (data == null) {
+						connection.query(query, (err, data) => {
+							if (err) {
+								reject(err);
+								connection.release();
+							} else {
+								this.dataReceived(resolve, data, limited);
+								connection.release();
+							}
+						});
+					}
+					// Use new prepared statements w/ placeholders
+					else {
+						connection.execute(query, data, (err, data) => {
+							if (err) {
+								reject(err);
+								connection.release();
+							} else {
+								this.dataReceived(resolve, data, limited);
+								connection.release();
+							}
+						});
+					}
 				}
 			});
 		});
@@ -77,7 +102,7 @@ function init() {
 	node_modules["randomstring"] = require("randomstring");
 	node_modules["diskUsage"] = require("diskusage");
 	node_modules["streamMeter"] = require("stream-meter");
-	node_modules["mysql"] = require("mysql");
+	node_modules["mysql2"] = require("mysql2");
 
 	// Only ran on startup so using sync functions is fine
 
@@ -237,8 +262,11 @@ function cleanURL(url = "") {
 			  .split("%40").join("@")
 			  .split("%5B").join("[").split("%5C").join("\\").split("%5D").join("]").split("%5E").join("^")
 	   		  .split("%60").join("`")
-	   		  .split("%7B").join("{").split("%7C").join("|").split("%7D").join("}").split("%7E").join("~");
+	   		  .split("%7B").join("{").split("%7C").join("|").split("%7D").join("}").split("%7E").join("~")
+			  .split("%CE%A9").join("Ω");
 }
+
+let existanceCache = {};
 
 function regularFile(req, res, urs = "", startTime = 0) {
 	if (req.url === "/") { urs = "/index.html" } else { urs = req.url }
@@ -253,6 +281,11 @@ function regularFile(req, res, urs = "", startTime = 0) {
 			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} ${req.url} ${Date.now() - startTime}ms`);
 		}
 	});
+}
+
+function imageFile(req, res, file, startTime = 0) {
+	res.sendFile(`${__dirname}${BASE_PATH}/i/${file}`);
+	global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} (ImageReq) ${req.url} ${Date.now() - startTime}ms`);
 }
 
 function error404Page(res) {
@@ -286,6 +319,12 @@ module.exports = {
 
 		req.url = cleanURL(req.url);
 
+		// The Funny Response
+		if (req.url.includes(".php") || req.url.includes("/wp-")) {
+			global.modules.consoleHelper.printWarn(emoji.globe_europe, `${req.method}: SUSSY ${req.headers["cf-connecting-ip"]} ${req.url}`);
+			return res.status(418).send("Unfortunately for you this server does not use PHP or WordPress.<hr>EUS");
+		}
+
 		// Check if returned value is true.
 		if (req.url.includes("/api/")) return handleAPI(req, res);
 
@@ -293,24 +332,28 @@ module.exports = {
 		const startTime = Date.now();
 
 		// Get the requested image
-		let urs = `${req.url}`; urs = urs.split("/")[1];
+		const urs = req.url.split("/")[1];
 		// Check if we even need to query the DB
 		const dbAble = (!/[^0-9A-Za-z]/.test(urs)) && urs != "" && urs != "index" && (req.url.split("/").length == 2);
 
 		if (dbAble) {
-			if (dbConnection.dbActive) {
-				// Try to get what we think is an image's details from the DB
-				const dbEntry = await dbConnection.query(`SELECT imageType FROM images WHERE imageId = "${urs}" LIMIT 1`);
-
-				// There's an entry in the DB for this, send the file back.
-				if (dbEntry != null) {
-					res.sendFile(`${__dirname}${BASE_PATH}/i/${urs}.${dbEntry.imageType}`);
-					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} (ImageReq) ${req.url} ${Date.now() - startTime}ms`);
+			if (urs in existanceCache) {
+				imageFile(req, res, `${urs}.${existanceCache[urs]}`, startTime);
+			} else {
+				if (dbConnection.dbActive) {
+					// Try to get what we think is an image's details from the DB
+					const dbEntry = await dbConnection.query(`SELECT imageType FROM images WHERE imageId = ? LIMIT 1`, [urs]);
+	
+					// There's an entry in the DB for this, send the file back.
+					if (dbEntry != null) {
+						existanceCache[urs] = dbEntry.imageType;
+						imageFile(req, res, `${urs}.${dbEntry.imageType}`, startTime);
+					}
+					// There's no entry, so treat this as a regular file.
+					else regularFile(req, res, urs, startTime);
 				}
-				// There's no entry, so treat this as a regular file.
-				else regularFile(req, res, urs, startTime);
+				else res.status(400).end("EUS is restarting, please try again in a few secs.");
 			}
-			else res.status(400).end("EUS is restarting, please try again in a few secs.");
 		}
 		// We can still serve files if they are not dbable
 		// since we don't need to check the db
@@ -328,11 +371,11 @@ module.exports = {
 
 		// Get time at the start of upload
 
+		res.header("Access-Control-Allow-Origin", "*");
+
 		if (useUploadKey && eusConfig["uploadKey"] != req.header("key")) return res.end("Incorrect key provided for upload");
 
 		const startTime = Date.now();
-		var fstream;
-		var thefe;
 		// Pipe the request to busboy
 		req.pipe(req.busboy);
 		req.busboy.on('file', function (fieldname, file, info) {
@@ -340,7 +383,11 @@ module.exports = {
 			fileOutName = node_modules.randomstring.generate(14);
 			global.modules.consoleHelper.printInfo(emoji.fast_up, `${req.method}: Upload of ${fileOutName} started.`);
 			// Check the file is within the accepted file types
-			const fileType = info.filename.split(".").slice(-1);
+			let fileType = info.filename.split(".").slice(-1);
+			if (info.filename === "blob") {
+				fileType = info.mimeType.split("/")[1];
+			}
+			var thefe = "";
 			if (eusConfig.acceptedTypes.includes(`.${fileType}`)) {
 				// File is accepted, set the extention of the file in thefe for later use.
 				thefe = fileType;
@@ -350,14 +397,32 @@ module.exports = {
 				return;
 			}
 			// Create a write stream for the file
-			fstream = fs.createWriteStream(__dirname + BASE_PATH + "/i/" + fileOutName + "." + thefe);
-			// Create meter for tracking the size of the file
-			const meter = node_modules.streamMeter();
-			file.pipe(meter).pipe(fstream);
+			let fstream = fs.createWriteStream(__dirname + BASE_PATH + "/i/" + fileOutName + "." + thefe);
+			file.pipe(fstream);
+
+			// Get all file data for the file MD5
+			let fileData = [];
+			file.on("data", (chunk) => {
+				fileData.push(chunk);
+			});
+
 			fstream.on('close', async () => {
-				// Add this image to the database
-				await dbConnection.query(`INSERT INTO images (id, imageId, imageType, imageSize) VALUES (NULL, "${fileOutName}", "${thefe}", ${meter.bytes})`);
-				
+				let md5Buffer = Buffer.concat(fileData);
+				// bye
+				fileData = null;
+
+				// Create MD5 hash of file
+				const hash = crypto.createHash("md5");
+				hash.setEncoding("hex");
+				hash.write(md5Buffer);
+				hash.end();
+
+				// Add to the existance cache
+				existanceCache[fileOutName] = thefe[0];
+
+				// Store image data in db
+				await dbConnection.query(`INSERT INTO images (id, imageId, imageType, hash, imageSize) VALUES (NULL, ?, ?, ?, ?)`, [fileOutName, thefe[0], hash.read(), md5Buffer.length]);
+			
 				// Send URL of the uploaded image to the client           
 				res.end(eusConfig.baseURL + fileOutName);
 				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${Date.now() - startTime}ms`);
@@ -366,6 +431,19 @@ module.exports = {
 				cacheJSON = JSON.stringify(await cacheFilesAndSpace());
 				cacheIsReady = true;
 			});
+
+			/*fstream.on('close', async () => {
+				// Add this image to the database
+				await dbConnection.query(`INSERT INTO images (id, imageId, imageType, hash, imageSize) VALUES (NULL, "${fileOutName}", "${thefe}", ${meter.bytes})`);
+				
+				// Send URL of the uploaded image to the client           
+				res.end(eusConfig.baseURL + fileOutName);
+				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${Date.now() - startTime}ms`);
+
+				// Update cached files & space
+				cacheJSON = JSON.stringify(await cacheFilesAndSpace());
+				cacheIsReady = true;
+			});*/
 		});
 	}
 }
@@ -452,5 +530,5 @@ module.exports.MOD_FUNC = MODULE_FUNCTION;
 
 module.exports.REQUIRED_NODE_MODULES = [
 	"chalk", "connect-busboy", "randomstring",
-	"diskusage", "stream-meter", "mysql"
+	"diskusage", "stream-meter", "mysql2"
 ];
