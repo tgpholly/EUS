@@ -2,10 +2,10 @@
   <img width="150" height="150" src="https://eusv.net/images/EUSLossless.webp">
 </p>
 <p align="center">
-  EUS is my public screenshot server built using <a href="https://github.com/tgpethan/Revolution">Revolution</a><br>
+  EUS is my public screenshot server built using <a href="https://github.com/tgpholly/Revolution">Revolution</a><br>
 </p>
 <p align="center">
-  <a href="https://www.codefactor.io/repository/github/tgpethan/eus/overview/master"><img src="https://www.codefactor.io/repository/github/tgpethan/eus/badge/master" alt="CodeFactor" /></a>
+  <a href="https://www.codefactor.io/repository/github/tgpethan/eus/overview/master"><img src="https://www.codefactor.io/repository/github/tgpholly/eus/badge/master" alt="CodeFactor" /></a>
   <a src="https://discord.gg/BV8QGn6"><img src="https://img.shields.io/discord/477024246959308810?color=7289da&label=Discord&logo=discord&logoColor=ffffff"></a>
 </p>
 
