@@ -30,9 +30,7 @@ If you want to expand the files that the server allows to be sent to it this can
 The value of **uploadKey** is used to restrict who can upload to your server, set this to something and the server will restrict who can upload depending on if they provided the key or not. If this field is left blank EUS will asume you don't want an upload key and uploads to it will be unrestricted
 
 ## API
-EUS has 3 apis, they are located at **[/api/get-stats](https://eusv.ml/api/get-stats)**, **[/api/get-info](https://eusv.ml/api/get-info)** and **[/api/get-server-status](https://eusv.ml/api/get-server-status)**
-
-[These are better documented on EUS Docs](https://docs.eusv.ml)
+EUS has 3 api endpoints, they are **[/api/get-stats](https://eusv.ml/api/get-stats)**, **[/api/get-info](https://eusv.ml/api/get-info)** and **[/api/get-server-status](https://eusv.ml/api/get-server-status)**
 
 ## Websites that use EUS
-[EUS](https://eusv.ml)
+[EUS](https://eusv.net)
