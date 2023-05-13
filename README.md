@@ -23,14 +23,14 @@ Simply drop the EUS.js into a Revolution instance's modules folder **(If you sti
 ## Config
 On first startup EUS will create a new config file in the **modules/EUS/** folder, some of these values may need to be changed depending on your use case.
 
-The value of **baseURL** will need to be changed to what you access the server from, for example if the server's ip is 192.168.1.100 and you are not planning to use EUS at a url you would change the value to **http://192.168.1.100/**. **baseURL** is used to construct the response url for file uploads, for example the value of **baseURL** on my instance of EUS is **https://eusv.ml/**.
+The value of **baseURL** will need to be changed to what you access the server from, for example if the server's ip is 192.168.1.100 and you are not planning to use EUS at a url you would change the value to **http://192.168.1.100/**. **baseURL** is used to construct the response url for file uploads, for example the value of **baseURL** on my instance of EUS is **https://eusv.net/**.
 
 If you want to expand the files that the server allows to be sent to it this can be done in the **allowedTypes** array. By default the array contains **png, jpg and gif**.
 
 The value of **uploadKey** is used to restrict who can upload to your server, set this to something and the server will restrict who can upload depending on if they provided the key or not. If this field is left blank EUS will asume you don't want an upload key and uploads to it will be unrestricted
 
 ## API
-EUS has 3 api endpoints, they are **[/api/get-stats](https://eusv.ml/api/get-stats)**, **[/api/get-info](https://eusv.ml/api/get-info)** and **[/api/get-server-status](https://eusv.ml/api/get-server-status)**
+EUS has 3 api endpoints, they are **[/api/get-stats](https://eusv.net/api/get-stats)**, **[/api/get-info](https://eusv.net/api/get-info)** and **[/api/get-server-status](https://eusv.net/api/get-server-status)**
 
 ## Websites that use EUS
 [EUS](https://eusv.net)
