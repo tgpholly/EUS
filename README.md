@@ -18,7 +18,7 @@ EUS has extra dependencies other than those of [Revolution](https://github.com/t
  - [stream-meter](https://www.npmjs.com/package/stream-meter)
  - [mysql](https://www.npmjs.com/package/mysql)
  
-Install the dependencies and then simply drop the EUS.js into a Revolution instance's modules folder **(If you still have [example_request_handler.js](https://github.com/tgpethan/Revolution/blob/master/modules/example_request_handler.js) be sure to delete it!)**
+Simply drop the EUS.js into a Revolution instance's modules folder **(If you still have [example_request_handler.js](https://github.com/tgpethan/Revolution/blob/master/modules/example_request_handler.js) be sure to delete it!)** and the extra required modules should be automatically installed.
 
 ## Config
 On first startup EUS will create a new config file in the **modules/EUS/** folder, some of these values may need to be changed depending on your use case.
