@@ -4,7 +4,8 @@ const config = require("../config/config.json"), crypto = require("crypto"), emo
 const MODULE_FUNCTION = "handle_requests",
 
 	  // Base path for module folder creation and navigation
-	  BASE_PATH = "/EUS";
+	  BASE_PATH = "/EUS",
+	  API_CACHE_LIFESPAN = 3600000;
 
 let node_modules = {};
 
@@ -12,7 +13,6 @@ let eusConfig = {},
 	useUploadKey = true,
 	cacheJSON = "",
 	startupFinished = false,
-	diskRunningOnSize = 0,
 	timeSinceLastCache = Date.now();
 
 class Database {
@@ -100,15 +100,10 @@ function init() {
 	node_modules["chalk"] = require("chalk");
 	node_modules["busboy"] = require("connect-busboy");
 	node_modules["randomstring"] = require("randomstring");
-	node_modules["diskUsage"] = require("diskusage");
 	node_modules["streamMeter"] = require("stream-meter");
 	node_modules["mysql2"] = require("mysql2");
 
 	// Only ran on startup so using sync functions is fine
-
-	// Fetch total size of disk on startup, this will never change during runtime
-	// if it does something seriously wrong has happened.
-	diskRunningOnSize = node_modules.diskUsage.checkSync(__dirname).total;
 
 	// Makes the folder for files of the module
 	if (!fs.existsSync(__dirname + BASE_PATH)) {
@@ -124,6 +119,11 @@ function init() {
 	if (!fs.existsSync(__dirname + BASE_PATH + "/i")) {
 		fs.mkdirSync(__dirname + BASE_PATH + "/i");
 		console.log(`[EUS] Made EUS images folder`);
+	}
+
+	if (!fs.existsSync("/tmp/EUS_UPLOADS")) {
+		fs.mkdirSync("/tmp/EUS_UPLOADS");
+		console.log("[EUS] Made EUS temp upload folder");
 	}
 
 	// Makes the config file
@@ -151,6 +151,7 @@ function init() {
 // Cache for the file count and space usage, this takes a while to do so it's best to cache the result
 let cacheIsReady = false;
 function cacheFilesAndSpace() {
+	timeSinceLastCache = Date.now();
 	return new Promise(async (resolve, reject) => {
 		const startCacheTime = Date.now();
 		cacheIsReady = false;
@@ -166,20 +167,14 @@ function cacheFilesAndSpace() {
 		});
 		cachedFilesAndSpace["filesTotal"] = totalFiles;
 
-		cachedFilesAndSpace["space"] = {usage: {}, total:{}};
+		cachedFilesAndSpace["size"] = {};
 
-		const dbSize = (await dbConnection.query(`SELECT SUM(imageSize) FROM images LIMIT 1`))["SUM(imageSize)"];
+		const dbSize = (await dbConnection.query(`SELECT SUM(fileSize) FROM images LIMIT 1`))["SUM(fileSize)"];
 		const totalSizeBytes = dbSize == null ? 0 : dbSize;
 		const mbSize = totalSizeBytes / 1024 / 1024;
-		cachedFilesAndSpace["space"]["usage"]["mb"] = parseFloat(mbSize.toFixed(4));
-		cachedFilesAndSpace["space"]["usage"]["gb"] = parseFloat((mbSize / 1024).toFixed(4));
-		cachedFilesAndSpace["space"]["usage"]["string"] = await spaceToLowest(totalSizeBytes, true);
-
-		//totalDiskSize
-		const totalMBSize = diskRunningOnSize / 1024 / 1024;
-		cachedFilesAndSpace["space"]["total"]["mb"] = parseFloat(totalMBSize.toFixed(4));
-		cachedFilesAndSpace["space"]["total"]["gb"] = parseFloat((totalMBSize / 1024).toFixed(4));
-		cachedFilesAndSpace["space"]["total"]["string"] = await spaceToLowest(diskRunningOnSize, true);
+		cachedFilesAndSpace["size"]["mb"] = parseFloat(mbSize.toFixed(4));
+		cachedFilesAndSpace["size"]["gb"] = parseFloat((mbSize / 1024).toFixed(4));
+		cachedFilesAndSpace["size"]["string"] = await spaceToLowest(totalSizeBytes, true);
 
 		resolve(cachedFilesAndSpace);
 		global.modules.consoleHelper.printInfo(emoji.folder, `Stats api cache took ${Date.now() - startCacheTime}ms`);
@@ -250,7 +245,7 @@ function validateConfig(json) {
 
 	// Check if server needs to be shutdown
 	if (performShutdownAfterValidation) {
-		console.error("EUS config properties are missing, refer to docs for more details (https://wiki.eusv.ml)");
+		console.error("EUS config properties are missing, refer to example config on GitHub (https://github.com/tgpholly/EUS)");
 		process.exit(1);
 	}
 	else return true;
@@ -277,7 +272,7 @@ function regularFile(req, res, urs = "", startTime = 0) {
 			global.modules.consoleHelper.printInfo(emoji.cross, `${req.method}: ${node_modules.chalk.red("[404]")} ${req.url} ${Date.now() - startTime}ms`);
 		} else {
 			// File does exist, send it back to the client.
-			res.sendFile(__dirname + BASE_PATH + "/files"+req.url);
+			res.sendFile(`${__dirname}${BASE_PATH}/files${req.url}`);
 			global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: ${node_modules.chalk.green("[200]")} ${req.url} ${Date.now() - startTime}ms`);
 		}
 	});
@@ -298,8 +293,6 @@ module.exports = {
 		// Setup express to use busboy
 		global.app.use(node_modules.busboy());
 		startupFinished = true;
-		//cacheJSON = JSON.stringify(await cacheFilesAndSpace());
-		//cacheIsReady = true;
 	},
 	get:async function(req, res) {
 		/*
@@ -316,7 +309,7 @@ module.exports = {
 		res.set("X-Frame-Options", "SAMEORIGIN");
 		res.set("X-Content-Type-Options", "nosniff");
 
-		req.url = cleanURL(req.url);
+		req.url = decodeURIComponent(req.url.split("?")[0]);
 
 		// The Funny Response
 		if (req.url.includes(".php") || req.url.includes("/wp-")) {
@@ -337,16 +330,20 @@ module.exports = {
 
 		if (dbAble) {
 			if (urs in existanceCache) {
-				imageFile(req, res, `${urs}.${existanceCache[urs]}`, startTime);
+				const cachedFile = existanceCache[urs];
+				imageFile(req, res, `${cachedFile.fileHash}.${cachedFile.fileType}`, startTime);
 			} else {
 				if (dbConnection.dbActive) {
 					// Try to get what we think is an image's details from the DB
-					const dbEntry = await dbConnection.query(`SELECT imageType FROM images WHERE imageId = ? LIMIT 1`, [urs]);
+					const dbEntry = await dbConnection.query(`SELECT hash, imageType FROM images WHERE imageId = ? LIMIT 1`, [urs]);
 	
 					// There's an entry in the DB for this, send the file back.
 					if (dbEntry != null) {
-						existanceCache[urs] = dbEntry.imageType;
-						imageFile(req, res, `${urs}.${dbEntry.imageType}`, startTime);
+						existanceCache[urs] = {
+							fileHash: dbEntry.hash,
+							fileType: dbEntry.imageType
+						};
+						imageFile(req, res, `${dbEntry.hash}.${dbEntry.imageType}`, startTime);
 					}
 					// There's no entry, so treat this as a regular file.
 					else regularFile(req, res, urs, startTime);
@@ -396,7 +393,7 @@ module.exports = {
 				return;
 			}
 			// Create a write stream for the file
-			let fstream = fs.createWriteStream(__dirname + BASE_PATH + "/i/" + fileOutName + "." + thefe);
+			let fstream = fs.createWriteStream("/tmp/EUS_UPLOADS/" + fileOutName);
 			file.pipe(fstream);
 
 			// Get all file data for the file MD5
@@ -416,19 +413,41 @@ module.exports = {
 				hash.write(md5Buffer);
 				hash.end();
 
-				// Add to the existance cache
-				existanceCache[fileOutName] = thefe[0];
-
-				// Store image data in db
-				await dbConnection.query(`INSERT INTO images (id, imageId, imageType, hash, imageSize) VALUES (NULL, ?, ?, ?, ?)`, [fileOutName, thefe[0], hash.read(), md5Buffer.length]);
-			
-				// Send URL of the uploaded image to the client           
-				res.end(eusConfig.baseURL + fileOutName);
-				global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${Date.now() - startTime}ms`);
-
-				// Update cached files & space
-				cacheJSON = JSON.stringify(await cacheFilesAndSpace());
-				cacheIsReady = true;
+				const fileHash = hash.read();
+				const dataOnHash = await dbConnection.query("SELECT imageId FROM images WHERE hash = ? LIMIT 1", [fileHash]);
+				if (dataOnHash !== undefined)
+				{
+					fs.unlink(`/tmp/EUS_UPLOADS/${fileOutName}`, () => {});
+					res.end(`${eusConfig.baseURL}${dataOnHash.imageId}`);
+					global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Hash matched! Sending ${dataOnHash.imageId} instead. Took ${Date.now() - startTime}ms`);
+					return;
+				} else {
+					fs.rename(`/tmp/EUS_UPLOADS/${fileOutName}`, `${__dirname}${BASE_PATH}/i/${fileHash}.${thefe[0]}`, async () => {
+						// Add to the existance cache
+						existanceCache[fileOutName] = {
+							fileHash: fileHash,
+							fileType: thefe[0]
+						};
+	
+						// Store image data in db
+						await dbConnection.query(`INSERT INTO images (id, imageId, imageType, hash, fileSize) VALUES (NULL, ?, ?, ?, ?)`, [fileOutName, thefe[0], fileHash, md5Buffer.length]);
+					
+						// Send URL of the uploaded image to the client           
+						res.end(eusConfig.baseURL + fileOutName);
+						global.modules.consoleHelper.printInfo(emoji.heavy_check, `${req.method}: Upload of ${fileOutName} finished. Took ${Date.now() - startTime}ms`);
+	
+						// Update cached files & space
+						if ((Date.now() - timeSinceLastCache) >= API_CACHE_LIFESPAN) {
+							cacheJSON = JSON.stringify(await cacheFilesAndSpace());
+						} else {
+							const tempJson = JSON.parse(cacheJSON);
+							tempJson.fileCounts[thefe[0]]++;
+							cacheJSON = JSON.stringify(tempJson);
+							global.modules.consoleHelper.printInfo(emoji.folder, `Skiped api cache`);
+						}
+						cacheIsReady = true;
+					});
+				}
 			});
 
 			/*fstream.on('close', async () => {
@@ -529,5 +548,5 @@ module.exports.MOD_FUNC = MODULE_FUNCTION;
 
 module.exports.REQUIRED_NODE_MODULES = [
 	"chalk", "connect-busboy", "randomstring",
-	"diskusage", "stream-meter", "mysql2"
+	"stream-meter", "mysql2"
 ];
