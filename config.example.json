@@ -1,0 +1,18 @@
+{
+	"baseURL":"https://example.com/",
+	"acceptedTypes": [
+		".png",
+		".jpg",
+		".jpeg",
+		".gif",
+		".mp4"
+	],
+	"uploadKey":"",
+	"database": {
+		"databaseAddress": "127.0.0.1",
+		"databasePort": 3306,
+		"databaseUsername": "root",
+		"databasePassword": "password",
+		"databaseName": "EUS"
+	}
+}
